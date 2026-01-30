@@ -1,20 +1,20 @@
 /* ============================================================
-   2) Theme Tokens (ONE source of truth)
+   2) Theme Tokens (ONE source of truth) — A 奶霧粉
    ============================================================ */
 :root {
-  /* Accent (由你的 Accent menu 控制) */
+  /* Accent */
   --accent: #d4a5c1;
 
-  /* ✅ 用 accent 自動算 glow，不要固定 rgba 粉色 */
-  --accent-glow: color-mix(in srgb, var(--accent) 28%, transparent);
+  /* ✅ glow 更明顯一點（奶霧粉會更甜） */
+  --accent-glow: color-mix(in srgb, var(--accent) 36%, transparent);
 
   /* Text */
   --ink: rgba(20, 18, 18, 0.92);
   --muted: rgba(20, 18, 18, 0.6);
 
   /* Borders */
-  --card-border: rgba(255, 255, 255, 0.35);
-  --stroke: rgba(0, 0, 0, 0.12);
+  --card-border: rgba(255, 255, 255, 0.42);
+  --stroke: rgba(0, 0, 0, 0.11);
 
   /* Shadows */
   --shadow-lg: 0 18px 45px rgba(0, 0, 0, 0.18);
@@ -26,66 +26,71 @@
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --todo-row-gap: 10px;
 
-  /* ✅ Neutral base for LIGHT */
-  --base1: rgba(245, 246, 252, 0.98);
-  --base2: rgba(236, 239, 249, 0.92);
+  /* ✅ Neutral base for LIGHT (更白一點) */
+  --base1: rgba(248, 249, 255, 0.98);
+  --base2: rgba(240, 243, 253, 0.94);
 
-  /* ✅ Background tinted by accent */
-  --bg1: color-mix(in srgb, var(--base1) 86%, var(--accent) 14%);
-  --bg2: color-mix(in srgb, var(--base2) 86%, var(--accent) 14%);
+  /* ✅ Background tinted by accent（更粉，但仍然奶白） */
+  --bg1: color-mix(in srgb, var(--base1) 76%, var(--accent) 24%);
+  --bg2: color-mix(in srgb, var(--base2) 76%, var(--accent) 24%);
 
-  /* ✅ Glass follows bg */
-  --glass: color-mix(in srgb, var(--bg1) 35%, rgba(255, 255, 255, 0.18));
-  --glass-strong: color-mix(in srgb, var(--bg1) 55%, rgba(255, 255, 255, 0.62));
+  /* ✅ Glass 更白、更霧（A 的核心） */
+  --glass: color-mix(in srgb, var(--bg1) 20%, rgba(255, 255, 255, 0.28));
+  --glass-strong: color-mix(in srgb, var(--bg1) 38%, rgba(255, 255, 255, 0.78));
 
   --surface-1: var(--glass);
   --surface-2: color-mix(in srgb, var(--glass) 78%, transparent);
   --surface-3: var(--glass-strong);
 
-  --chip-bg: color-mix(in srgb, var(--surface-3) 70%, transparent);
-  --chip-bg-strong: color-mix(in srgb, var(--surface-3) 82%, transparent);
-  --chip-border: color-mix(in srgb, var(--card-border) 60%, transparent);
+  --chip-bg: color-mix(in srgb, var(--surface-3) 74%, transparent);
+  --chip-bg-strong: color-mix(in srgb, var(--surface-3) 86%, transparent);
+  --chip-border: color-mix(in srgb, var(--card-border) 65%, transparent);
 
-  --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
-  --accent-soft-border: color-mix(in srgb, var(--accent) 35%, transparent);
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-soft-border: color-mix(in srgb, var(--accent) 34%, transparent);
 
   --btn-primary-bg: color-mix(in srgb, var(--accent) 78%, white);
-  --btn-primary-bg2: color-mix(in srgb, var(--accent) 68%, white);
+  --btn-primary-bg2: color-mix(in srgb, var(--accent) 66%, white);
   --btn-primary-text: #fff;
 
   --btn-icon-bg: var(--surface-1);
   --btn-icon-border: var(--card-border);
   --btn-icon-text: var(--ink);
 
-  --focus-ring: color-mix(in srgb, var(--accent) 22%, transparent);
-  --form-border: color-mix(in srgb, var(--accent) 40%, transparent);
-  --form-border-focus: color-mix(in srgb, var(--accent) 55%, transparent);
+  --focus-ring: color-mix(in srgb, var(--accent) 26%, transparent);
+  --form-border: color-mix(in srgb, var(--accent) 42%, transparent);
+  --form-border-focus: color-mix(in srgb, var(--accent) 58%, transparent);
 
-  --todo-grad-1: color-mix(in srgb, var(--accent) 35%, rgba(255, 255, 255, 1));
-  --todo-grad-2: color-mix(in srgb, var(--accent) 25%, rgba(255, 255, 255, 1));
+  /* ✅ hover 變得明顯（你要的 hover） */
+  --hover-bg: color-mix(in srgb, var(--accent) 22%, var(--surface-2));
+  --hover-border: color-mix(in srgb, var(--accent) 55%, transparent);
+
+  --todo-grad-1: color-mix(in srgb, var(--accent) 32%, rgba(255, 255, 255, 1));
+  --todo-grad-2: color-mix(in srgb, var(--accent) 22%, rgba(255, 255, 255, 1));
 }
 
 :root[data-theme="dark"] {
   --ink: rgba(245, 243, 245, 0.92);
   --muted: rgba(245, 243, 245, 0.62);
 
-  --card-border: rgba(255, 255, 255, 0.12);
-  --stroke: rgba(255, 255, 255, 0.16);
+  --card-border: rgba(255, 255, 255, 0.14);
+  --stroke: rgba(255, 255, 255, 0.18);
 
-  --shadow-lg: 0 18px 45px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 18px 45px rgba(0, 0, 0, 0.42);
   --shadow-md: 0 12px 26px rgba(0, 0, 0, 0.28);
   --shadow-sm: 0 8px 18px rgba(0, 0, 0, 0.22);
 
-  /* ✅ Neutral base for DARK */
-  --base1: rgba(58, 56, 68, 0.94);
-  --base2: rgba(48, 46, 58, 0.9);
+  /* ✅ Dark base 改亮（不會那麼黑） */
+  --base1: rgba(74, 72, 88, 0.94);
+  --base2: rgba(64, 62, 78, 0.92);
 
-  /* ✅ Dark background tinted by accent */
-  --bg1: color-mix(in srgb, var(--base1) 82%, var(--accent) 18%);
-  --bg2: color-mix(in srgb, var(--base2) 82%, var(--accent) 18%);
+  /* ✅ Dark 也稍微吃 accent，但不要太紫 */
+  --bg1: color-mix(in srgb, var(--base1) 76%, var(--accent) 24%);
+  --bg2: color-mix(in srgb, var(--base2) 76%, var(--accent) 24%);
 
-  --glass: color-mix(in srgb, var(--bg1) 55%, rgba(255, 255, 255, 0.1));
-  --glass-strong: color-mix(in srgb, var(--bg1) 72%, rgba(255, 255, 255, 0.16));
+  /* ✅ Dark glass 仍然奶霧（比較亮、比較柔） */
+  --glass: color-mix(in srgb, var(--bg1) 58%, rgba(255, 255, 255, 0.12));
+  --glass-strong: color-mix(in srgb, var(--bg1) 72%, rgba(255, 255, 255, 0.18));
 
   --surface-1: var(--glass);
   --surface-2: color-mix(in srgb, var(--glass) 78%, transparent);
@@ -95,6 +100,123 @@
   --chip-bg-strong: color-mix(in srgb, var(--surface-3) 88%, transparent);
   --chip-border: color-mix(in srgb, var(--card-border) 65%, transparent);
 
-  --todo-grad-1: color-mix(in srgb, var(--accent) 22%, rgba(30, 26, 34, 1));
-  --todo-grad-2: color-mix(in srgb, var(--accent) 16%, rgba(24, 20, 28, 1));
+  --hover-bg: color-mix(in srgb, var(--accent) 18%, var(--surface-2));
+  --hover-border: color-mix(in srgb, var(--accent) 50%, transparent);
+
+  --todo-grad-1: color-mix(in srgb, var(--accent) 18%, rgba(36, 32, 44, 1));
+  --todo-grad-2: color-mix(in srgb, var(--accent) 12%, rgba(28, 24, 36, 1));
 }
+
+/*
+==================================
+
+這份檔案用來記錄「主題顏色 / 背景 / 玻璃感」的調整方式。
+所有修改都只動 tokens，不動 component CSS。
+
+------------------------------------------------------------
+1) 整體背景「更粉 / 更明顯吃 accent」
+------------------------------------------------------------
+
+背景顏色主要由 bg1 / bg2 決定，
+它們是 base 色 + accent 的 color-mix。
+
+【Light mode 原本】
+--bg1: color-mix(in srgb, var(--base1) 86%, var(--accent) 14%);
+--bg2: color-mix(in srgb, var(--base2) 86%, var(--accent) 14%);
+
+【想更粉（建議）】
+--bg1: color-mix(in srgb, var(--base1) 78%, var(--accent) 22%);
+--bg2: color-mix(in srgb, var(--base2) 78%, var(--accent) 22%);
+
+效果：
+- Light 背景會更粉、更甜
+- 但仍保留白色底，不會髒
+
+
+【Dark mode 原本】
+--bg1: color-mix(in srgb, var(--base1) 82%, var(--accent) 18%);
+--bg2: color-mix(in srgb, var(--base2) 82%, var(--accent) 18%);
+
+【想讓暗色更吃 accent（建議）】
+--bg1: color-mix(in srgb, var(--base1) 72%, var(--accent) 28%);
+--bg2: color-mix(in srgb, var(--base2) 72%, var(--accent) 28%);
+
+效果：
+- Dark mode 不再灰灰的
+- 會偏向紫粉 / accent 色調
+- 整體更有品牌感
+
+
+------------------------------------------------------------
+2) Dark mode「不要那麼暗」（整體變亮）
+------------------------------------------------------------
+
+Dark 的亮暗主要由 base1 / base2 決定，
+這是 dark 模式的「底色」。
+
+【原本（偏暗）】
+--base1: rgba(58, 56, 68, 0.94);
+--base2: rgba(48, 46, 58, 0.9);
+
+【改亮一點（推薦）】
+--base1: rgba(72, 70, 84, 0.94);
+--base2: rgba(62, 60, 74, 0.9);
+
+效果：
+- Dark mode 變成「霧紫灰」
+- 背景更亮、更柔
+- 文字對比仍然夠，不刺眼
+
+
+------------------------------------------------------------
+3) 玻璃感（cards / bars / panels 的霧感）
+------------------------------------------------------------
+
+玻璃感由 glass / glass-strong 控制，
+它們會影響：
+- menu-card
+- now-bar
+- tag bar
+- sound panel
+- dropdown / popover
+
+【目前】
+--glass: color-mix(in srgb, var(--bg1) 35%, rgba(255, 255, 255, 0.18));
+--glass-strong: color-mix(in srgb, var(--bg1) 55%, rgba(255, 255, 255, 0.62));
+
+
+A) 玻璃「更白、更亮、更 iOS」
+--------------------------------
+--glass: color-mix(in srgb, var(--bg1) 25%, rgba(255, 255, 255, 0.24));
+--glass-strong: color-mix(in srgb, var(--bg1) 45%, rgba(255, 255, 255, 0.72));
+
+效果：
+- 很像 iOS / macOS frosted glass
+- 清爽、乾淨、亮
+
+
+B) 玻璃「更染色、更粉」（accent 感更強）
+----------------------------------------
+--glass: color-mix(in srgb, var(--bg1) 55%, rgba(255, 255, 255, 0.12));
+--glass-strong: color-mix(in srgb, var(--bg1) 70%, rgba(255, 255, 255, 0.22));
+
+效果：
+- 奶霧粉感更重
+- 整體更偏品牌色
+- 情緒感更強
+
+
+------------------------------------------------------------
+使用建議
+------------------------------------------------------------
+
+- 想「更粉」 → 調 bg1 / bg2 的 accent 比例
+- 想「dark 不那麼黑」 → 調 base1 / base2
+- 想「玻璃更白 or 更染色」 → 在 glass / glass-strong 兩組中切換
+
+原則：
+👉 永遠只動 tokens，不要直接改 component CSS
+👉 這樣整個 UI 會一起跟著變，不會亂
+
+
+*/
