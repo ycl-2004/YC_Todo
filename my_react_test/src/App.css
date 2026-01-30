@@ -416,26 +416,72 @@ body {
   margin: 0;
 }
 
-/* tag select */
+/* ============================================================
+   Tag Select (CreateForm) — prettier native select
+   NOTE: macOS native dropdown popup is not fully stylable.
+   ============================================================ */
 .create-form .tag-select {
-  margin-left: auto;
+  /* size */
+  height: 28px;
+  line-height: 28px;
+  padding: 0 28px 0 12px; /* leave room for arrow */
+  min-width: 92px;
 
-  padding: 0 10px;
+  /* look */
   border-radius: 999px;
-  border: 1px solid var(--chip-border);
-  background: var(--chip-bg);
-
-  font-size: 11px;
-  font-weight: 900;
-
-  -webkit-appearance: none;
-  appearance: none;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--card-border));
+  background: color-mix(in srgb, var(--surface-3) 70%, transparent);
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--accent) 14%, transparent);
 
   color: var(--ink);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+
+  /* native reset */
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  cursor: pointer;
+
+  /* arrow (match your minute select arrow style) */
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink) 50%),
+    linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position:
+    calc(100% - 16px) 50%,
+    calc(100% - 11px) 50%;
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+
+  transition:
+    transform 120ms var(--ease),
+    filter 120ms var(--ease),
+    box-shadow 120ms var(--ease),
+    border-color 120ms var(--ease);
+}
+
+.create-form .tag-select:hover {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
+
+.create-form .tag-select:active {
+  transform: translateY(0);
+}
+
+.create-form .tag-select:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow:
+    0 0 0 3px var(--focus-ring),
+    0 10px 22px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* Small improvement: option text weight (may or may not apply on macOS) */
+.create-form .tag-select option {
+  font-weight: 700;
 }
 
 /* minute button */
