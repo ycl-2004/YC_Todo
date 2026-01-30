@@ -285,6 +285,9 @@ function TodoWrapper() {
 
   const [showSoundPanel, setShowSoundPanel] = useState(false);
 
+  const [isNativePlaying, setIsNativePlaying] = useState(false); // ✅ NEW
+  const nativeRestartTimerRef = useRef(null);
+
   const audioRef = useRef(null);
   const [isSoundPlaying, setIsSoundPlaying] = useState(false);
 
@@ -295,15 +298,23 @@ function TodoWrapper() {
   // click outside close
   const soundPanelWrapRef = useRef(null);
   useEffect(() => {
-    const onDown = (e) => {
+    const onDown = async (e) => {
       if (!showSoundPanel) return;
       if (!soundPanelWrapRef.current) return;
       if (soundPanelWrapRef.current.contains(e.target)) return;
+
       setShowSoundPanel(false);
+
+      // ✅ stop BOTH preview(web) and native
+      stopSound();
+      await stopAlarmNative();
     };
+
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-  }, [showSoundPanel]);
+    // include functions used inside if eslint complains
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSoundPanel, soundPath]);
 
   const syncAudioState = () => {
     const a = audioRef.current;
@@ -416,36 +427,38 @@ function TodoWrapper() {
     return audioRef.current;
   };
 
-  // ✅ 原生播放（背景保證）：交給 Rust 用系統播放器播 mp3
+  const playAlarmNativeRaw = async (path, vol01) => {
+    await invoke("play_alarm", { path, volume: vol01 });
+  };
+
+  const stopAlarmNativeRaw = async () => {
+    await invoke("stop_alarm");
+  };
+
   const playAlarmNative = async () => {
     try {
       if (!soundPath) return false;
-
-      // 你的 slider 是 0..3.5，macOS afplay -v 需要 0..1
       const raw = Number(soundVolume);
       const vol01 = Math.max(
         0,
         Math.min(1, Number.isFinite(raw) ? raw / 3.5 : 1),
       );
 
-      await invoke("play_alarm", {
-        path: soundPath,
-        volume: vol01,
-      });
-
+      await playAlarmNativeRaw(soundPath, vol01);
+      setIsNativePlaying(true);
       return true;
     } catch (e) {
-      console.error("[alarm] native play failed:", e);
+      setIsNativePlaying(false);
       return false;
     }
   };
 
   const stopAlarmNative = async () => {
     try {
-      await invoke("stop_alarm");
+      await stopAlarmNativeRaw();
+      setIsNativePlaying(false);
       return true;
     } catch (e) {
-      console.error("[alarm] native stop failed:", e);
       return false;
     }
   };
@@ -684,7 +697,7 @@ function TodoWrapper() {
 
     stopSound(); // web audio stop
     try {
-      await invoke("stop_alarm"); // ✅ native stop
+      await stopAlarmNative();
     } catch {}
   };
 
@@ -785,6 +798,37 @@ function TodoWrapper() {
       }
     } catch {}
   };
+
+  useEffect(() => {
+    // 只有正在 native 播放時，音量拖動才重播
+    if (!isNativePlaying) return;
+    if (!soundPath) return;
+
+    if (nativeRestartTimerRef.current) {
+      clearTimeout(nativeRestartTimerRef.current);
+    }
+
+    nativeRestartTimerRef.current = setTimeout(async () => {
+      try {
+        const raw = Number(soundVolume);
+        const vol01 = Math.max(
+          0,
+          Math.min(1, Number.isFinite(raw) ? raw / 3.5 : 1),
+        );
+
+        // ✅ 用 raw：不會把 isNativePlaying 變 false/true
+        await stopAlarmNativeRaw();
+        await playAlarmNativeRaw(soundPath, vol01);
+      } catch {}
+    }, 120);
+
+    return () => {
+      if (nativeRestartTimerRef.current) {
+        clearTimeout(nativeRestartTimerRef.current);
+        nativeRestartTimerRef.current = null;
+      }
+    };
+  }, [soundVolume, soundPath, isNativePlaying]);
 
   // -----------------------------
   // Change title
@@ -1220,7 +1264,11 @@ function TodoWrapper() {
                     <button
                       type="button"
                       className="sound-close"
-                      onClick={() => setShowSoundPanel(false)}
+                      onClick={async () => {
+                        setShowSoundPanel(false);
+                        stopSound();
+                        await stopAlarmNative();
+                      }}
                       aria-label="Close sound panel"
                       title="Close"
                     >
