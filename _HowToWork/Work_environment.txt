@@ -1,0 +1,111 @@
+YC Todo — Tools / Environment / Platforms Used
+=============================================
+
+This document lists all tools, environments, and platforms used in the
+YC Todo macOS menubar (NSPopover-based) application project.
+
+------------------------------------------------------------
+1) Frontend / UI
+------------------------------------------------------------
+- React (JavaScript library for UI)
+- Vite (Frontend build tool & dev server)
+- HTML / CSS
+- JavaScript (ES6+)
+- localStorage (browser storage for persisting todos and timers)
+
+------------------------------------------------------------
+2) Desktop App Framework
+------------------------------------------------------------
+- Tauri (v2)
+  - Wraps the web frontend into a native macOS application
+  - Provides system APIs, lifecycle management, and native integration
+- macOS NSPopover (native)
+  - Used instead of a normal window for true menubar popover behavior
+  - Ensures the app floats above fullscreen apps
+
+------------------------------------------------------------
+3) Backend / System Layer
+------------------------------------------------------------
+- Rust
+  - Used for Tauri backend logic
+  - Controls tray icon behavior, popover visibility, and app lifecycle
+- Cargo
+  - Rust package manager and build system
+
+------------------------------------------------------------
+4) Menubar / Tray Integration
+------------------------------------------------------------
+- macOS Menubar (Accessory app — no Dock icon)
+- Tray icon created and managed via Rust (Tauri Tray API)
+- Native NSPopover behavior:
+  - Click menubar icon to toggle popover
+  - Works correctly over fullscreen applications
+- Template PNG tray icon (white / transparent)
+
+------------------------------------------------------------
+5) Tauri Plugins & Permissions
+------------------------------------------------------------
+- tauri-plugin-nspopover
+  - Converts the main window into a macOS NSPopover
+  - Handles show / hide / isOpen popover logic
+- tauri-plugin-log
+  - Debug logging during development
+- tauri-plugin-positioner
+  - (Previously used) for window positioning
+- Tauri capabilities / permissions
+  - Managed via `src-tauri/capabilities/default.json`
+  - Includes popover and tray permissions
+
+------------------------------------------------------------
+6) Build & Packaging
+------------------------------------------------------------
+- Node.js
+- npm
+- Tauri CLI
+- macOS .app bundle
+- macOS .dmg installer
+
+------------------------------------------------------------
+7) Operating System & Platform
+------------------------------------------------------------
+- macOS (Apple Silicon / aarch64)
+- macOS Gatekeeper (app security & verification)
+- macOS Finder & Applications directory
+
+------------------------------------------------------------
+8) Development Environment
+------------------------------------------------------------
+- Visual Studio Code (VS Code)
+- macOS Terminal (zsh)
+- Homebrew
+  - Used to install tools such as ImageMagick
+
+------------------------------------------------------------
+9) Assets & Media
+------------------------------------------------------------
+- PNG images (UI icons, tray icon template)
+- ICNS (macOS app icon format)
+- Image processing tools:
+  - sips (macOS built-in)
+  - ImageMagick (for generating icons)
+
+------------------------------------------------------------
+10) Version Control / Project Structure
+------------------------------------------------------------
+- Git (local repository)
+- Standard Vite + Tauri project structure
+  - `src/` for frontend
+  - `src-tauri/` for Rust backend
+
+------------------------------------------------------------
+11) Execution Modes
+------------------------------------------------------------
+- Development mode:
+  - `npx tauri dev`
+  - Requires VS Code / terminal
+- Production mode:
+  - `npx tauri build`
+  - Generates standalone macOS application (.app / .dmg)
+
+------------------------------------------------------------
+(End)

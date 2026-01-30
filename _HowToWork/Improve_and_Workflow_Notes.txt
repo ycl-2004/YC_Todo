@@ -1,0 +1,287 @@
+YC Todo：之後如何繼續 Improve App ＆ 正確開發 / 發佈流程（補充筆記）
+====================================================================
+
+這一份是「完成第一版 macOS menubar app（Popover 版）」之後的實戰流程筆記。
+目的：讓之後開發不混亂，知道什麼時候 dev、什麼時候 build、什麼時候要重新安裝。
+
+--------------------------------------------------------------------
+0) 你目前已完成的成果（Checkpoint）
+--------------------------------------------------------------------
+
+✅ React + Vite Todo UI（含 timer / 狀態 / localStorage）
+✅ 使用 Tauri 打包成 macOS App（.app / .dmg）
+✅ Tray / Menubar icon（點擊開關）
+✅ Dock 隱藏（Accessory app）
+✅ 已改成 macOS 原生 NSPopover 行為
+   - 全螢幕 Chrome / VS Code 都能浮在最上面
+   - 行為類似 Proton VPN / Raycast
+   - 使用 tauri-plugin-nspopover（macOS only）
+✅ UI 已調整為 Popover 尺寸（填滿、不露底色）
+
+--------------------------------------------------------------------
+1) 之後只會在兩種模式之間切換
+--------------------------------------------------------------------
+
+------------------------------------------------------------
+【模式 1】開發模式（改功能 / 改 UI / Debug）
+------------------------------------------------------------
+用途：
+- 改 React / CSS / UI 排版
+- 加新功能（timer、鎖定、排序）
+- 改 tray / popover 行為
+- Debug 問題
+
+指令（專案根目錄）：
+  npx tauri dev
+
+特性：
+- 需要 VS Code + terminal
+- React 有熱更新（快）
+- Rust / Tauri 會重新編譯（較慢）
+- 只是測試，不是正式 App
+
+👉 任何改動，一定先用這個模式測
+
+------------------------------------------------------------
+【模式 2】正式 App（實際使用 / 發佈）
+------------------------------------------------------------
+用途：
+- 產生真正可用的 macOS app
+- 不需要 VS Code / terminal
+- 可拖進 Applications 使用
+
+指令：
+  npx tauri build
+
+產物位置：
+- .app：
+  src-tauri/target/release/bundle/macos/YC Todo.app
+- .dmg：
+  src-tauri/target/release/bundle/dmg/YC_Todo_0.x.x_*.dmg
+
+👉 每次想「用最新版本」都一定要重新 build
+
+--------------------------------------------------------------------
+2) 最重要的標準工作流程（一定要記住）
+--------------------------------------------------------------------
+
+你之後的開發循環永遠是：
+
+  改功能 / 改 UI
+        ↓
+  npx tauri dev   （測試）
+        ↓
+      OK
+        ↓
+  npx tauri build （產生正式 app）
+        ↓
+  用 .dmg 安裝 或 覆蓋 Applications 裡的舊 app
+
+⚠️ Menubar app 常見陷阱：
+- 看起來關了，其實還在背景
+- 更新後請「完全退出舊版 app」再重開
+- Finder 沒更新可執行：
+  killall Finder
+
+--------------------------------------------------------------------
+3) NSPopover（macOS 原生 Popover）專用說明【重要】
+--------------------------------------------------------------------
+
+你現在使用的是 Popover 方案，與一般 Tauri app 有差異：
+
+(1) 依賴位置（一定要對）
+- Rust：src-tauri/Cargo.toml
+  - tauri-plugin-nspopover
+- JS：package.json
+  - 使用 git URL（不是 npm registry）
+- 權限：src-tauri/capabilities/default.json
+  - 必須包含 nspopover permissions
+- Tray：
+  - 不要在 tauri.conf.json 使用 systemTray
+  - Tray icon 由 Rust 建立
+
+(2) npm install 要不要跑？
+- 只改 React / CSS → 不用
+- 有改 package.json（新增依賴）→ 一定要跑
+  npm install
+
+⚠️ 注意：
+tauri-plugin-nspopover 不是 npm 套件
+❌ npm i tauri-plugin-nspopover
+✅ git URL + npm install
+
+--------------------------------------------------------------------
+4) 常見情境 → 要跑哪個？
+--------------------------------------------------------------------
+
+Q1：我只是在調 UI、CSS、React state  
+→ npx tauri dev
+
+Q2：我在改 tray / popover / timer 行為  
+→ npx tauri dev
+
+Q3：我要每天用 / 給朋友用  
+→ npx tauri build
+
+Q4：build 了但 app 看起來沒變  
+→ 還在跑舊版（背景）
+→ 完全退出後重開，或重新安裝 dmg
+
+Q5：全螢幕 Chrome 點 icon 不浮在最上面  
+→ 還在用普通 window
+→ 必須使用 NSPopover
+
+--------------------------------------------------------------------
+5) UI / CSS（Popover 專用原則）
+--------------------------------------------------------------------
+
+Popover UI 原則：
+
+- body 背景設為 transparent
+- menu-card：
+  - width / height = 100%
+  - padding 控制內距
+- 使用 flex + flex:1 撐滿中間內容
+- 不使用 body 居中（避免露底色）
+
+Popover 是「固定容器」，不是一般網頁。
+
+--------------------------------------------------------------------
+6) 依賴與設定注意事項（避免踩雷）
+--------------------------------------------------------------------
+
+- Cargo.toml：
+  - 只能有一個 [dependencies]
+- tauri.conf.json：
+  - schema not allowed → 通常是 Popover / tray 用錯地方
+- plugin panic（unwrap None）：
+  - tray / window id 不一致
+
+--------------------------------------------------------------------
+7) 之後可以怎麼繼續升級 YC Todo？
+--------------------------------------------------------------------
+
+【UX / 產品等級】
+- tray icon 顯示剩餘時間
+- timer 結束 Notification Center 通知
+- 專注模式：進行中 task 鎖定
+- 空狀態 / completed 動畫
+
+【系統整合】
+- 開機自動啟動
+- Global shortcut（⌘⇧T）
+- 深色 / 淺色模式同步
+- 未來移植 Windows（非 NSPopover）
+
+【發佈】
+- .dmg 分享
+- code signing / notarization（之後）
+- 正式版本號管理
+
+--------------------------------------------------------------------
+8) 🔢 自動升級版本號（SemVer）【強烈推薦】
+--------------------------------------------------------------------
+
+為避免手動修改版本號導致混亂，
+建議使用 npm script 一鍵同步升級：
+
+- package.json
+- src-tauri/tauri.conf.json
+- src-tauri/Cargo.toml
+
+版本格式：
+  MAJOR.MINOR.PATCH
+
+你的策略：
+- 小修 bug：0.2.0 → 0.2.1
+- 新功能階段：0.1.9 → 0.2.0（刻意不用 0.1.10）
+- 大改版：0.x → 1.0.0
+
+------------------------------------------------------------
+(1) 在 package.json 加入 scripts
+------------------------------------------------------------
+
+"scripts": {
+  "bump:patch": "node scripts/bump-version.js patch",
+  "bump:minor": "node scripts/bump-version.js minor",
+  "bump:major": "node scripts/bump-version.js major"
+}
+
+------------------------------------------------------------
+(2) 新增升版腳本
+------------------------------------------------------------
+
+建立：
+  scripts/bump-version.js
+
+內容：
+
+const fs = require("fs");
+
+const mode = process.argv[2];
+const files = [
+  "package.json",
+  "src-tauri/tauri.conf.json",
+  "src-tauri/Cargo.toml",
+];
+
+function bump(v) {
+  let [M, m, p] = v.split(".").map(Number);
+  if (mode === "patch") p++;
+  else if (mode === "minor") { m++; p = 0; }
+  else if (mode === "major") { M++; m = 0; p = 0; }
+  return `${M}.${m}.${p}`;
+}
+
+files.forEach((f) => {
+  const t = fs.readFileSync(f, "utf8");
+  const m = t.match(/version[\" =:]+([0-9]+\.[0-9]+\.[0-9]+)/);
+  if (!m) return;
+  const nv = bump(m[1]);
+  fs.writeFileSync(f, t.replace(m[1], nv));
+  console.log(`${f}: ${m[1]} → ${nv}`);
+});
+
+------------------------------------------------------------
+(3) 實際使用方式
+------------------------------------------------------------
+
+小修：
+  npm run bump:patch
+
+新功能階段（最常用）：
+  npm run bump:minor
+
+大改版：
+  npm run bump:major
+
+------------------------------------------------------------
+(4) 標準發佈流程（含版本）
+------------------------------------------------------------
+
+改功能
+  ↓
+npx tauri dev
+  ↓
+測試 OK
+  ↓
+npm run bump:minor
+  ↓
+npx tauri build
+  ↓
+用新 dmg 安裝 / 發佈
+
+--------------------------------------------------------------------
+9) 一句總結（定位）
+--------------------------------------------------------------------
+
+YC Todo 已經不是學習 Demo，而是：
+
+「一個真正可以每天使用、可持續進化的 macOS menubar productivity app」
+
+記住兩說話就夠：
+- 改功能 → dev
+- 要用 / 發佈 → build
+
+--------------------------------------------------------------------
+（完）

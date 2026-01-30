@@ -1,0 +1,161 @@
+REACT 專案檔案說明（你的專案版本）
+================================
+
+本文件根據你提供的檔案列表，整理出：
+1) 專案有哪些檔案
+2) 每個檔案在做什麼
+3) 檔案怎麼串起來
+4) 你應該怎麼讀這個專案
+
+--------------------------------
+1. 你的專案有哪些檔案？
+--------------------------------
+
+你目前的檔案如下（共 7 個）：
+
+- main.jsx
+- App.jsx
+- App.css
+- TodoWrapper.jsx
+- Todo.jsx
+- CreateForm.jsx
+- EditForm.jsx
+
+--------------------------------
+2. 這個專案是什麼？
+--------------------------------
+
+這是一個典型的「Todo List / Task List」React 小專案（CRUD 類型）：
+- Create：新增事項（CreateForm）
+- Read：顯示清單（Todo / TodoWrapper）
+- Update：編輯事項（EditForm）
+- Delete：刪除事項（Todo / TodoWrapper）
+
+你可以把它想成：
+「輸入一個任務 → 顯示在列表 → 可以編輯 / 刪除 / 切換狀態」
+
+--------------------------------
+3. 專案怎麼串起來（執行流程）
+--------------------------------
+
+整個專案的連接路徑通常是：
+
+index.html
+  ↓
+main.jsx          （入口：把 App 掛到畫面上）
+  ↓
+App.jsx           （主畫面外殼：組 UI、放 TodoWrapper）
+  ↓
+TodoWrapper.jsx   （核心邏輯：管理資料與主要功能）
+  ↓
+CreateForm.jsx / Todo.jsx / EditForm.jsx（各小元件）
+
+一句話記法：
+main.jsx 開始 → App.jsx 組畫面 → TodoWrapper 管資料 → 其他檔案負責輸入/顯示
+
+--------------------------------
+4. 每個檔案在做什麼（白話版）
+--------------------------------
+
+(1) main.jsx
+- 角色：入口 / 開門的人
+- 功能：把 <App /> 渲染到網頁的 root
+- 重點：通常不需要改，知道它是入口就好
+
+(2) App.jsx
+- 角色：外殼 / 舞台
+- 功能：
+  - 載入 App.css
+  - 放標題或基本版面
+  - 把 TodoWrapper 放進畫面（例如 <TodoWrapper />）
+- 重點：主要邏輯通常不在這裡
+
+(3) App.css
+- 角色：化妝師（負責外觀）
+- 功能：控制 UI 長相（顏色、排版、間距、字體等）
+- 你會看到像：
+  - .wrapper（外層卡片容器）
+  - .create-form（輸入表單的樣式）
+- 重點：CSS 不改功能，只改長相
+
+(4) TodoWrapper.jsx（最重要）
+- 角色：大腦 / 中央控制室 / 老闆
+- 功能（通常包含）：
+  - 存 todo 清單（useState）
+  - 新增 todo
+  - 刪除 todo
+  - 更新/編輯 todo
+  - 控制「顯示 Todo 還是 EditForm」
+- 重點：要理解專案，先讀懂 TodoWrapper.jsx
+
+(5) CreateForm.jsx
+- 角色：新增輸入框
+- 功能：
+  - 顯示 input
+  - 接收使用者輸入
+  - 提交後把新 todo 文字「交回 TodoWrapper」處理
+- 重點：它不自己存資料，只負責「輸入 + 回報」
+
+(6) Todo.jsx
+- 角色：顯示單一 todo
+- 功能：
+  - 顯示 todo 內容
+  - 顯示按鈕（刪除 / 編輯 / 完成等）
+  - 使用者點按鈕時，呼叫 TodoWrapper 提供的函式
+- 重點：主要是展示用 UI 元件
+
+(7) EditForm.jsx
+- 角色：編輯模式的輸入框
+- 功能：
+  - 把原本的 todo 內容放進 input
+  - 讓使用者修改
+  - 提交後交回 TodoWrapper 更新
+- 重點：和 CreateForm 類似，但用途是更新而非新增
+
+--------------------------------
+5. 資料如何流動（最核心概念）
+--------------------------------
+
+用最白話的方式描述：
+
+- TodoWrapper 存資料、負責所有「真正的變更」
+- 其他元件只負責：
+  - 顯示資料（Todo）
+  - 收集使用者輸入（CreateForm / EditForm）
+  - 把操作回報給 TodoWrapper
+
+資料與動作流向：
+
+TodoWrapper（存資料）
+  ↓ 把資料傳下去（props）
+Todo / EditForm（顯示）
+  ↑ 使用者操作回報（callback）
+TodoWrapper（更新資料）
+
+一句話記法：
+「資料在 TodoWrapper，其他只是 UI；按鈕/輸入最後都回到 TodoWrapper 處理。」
+
+--------------------------------
+6. 建議的閱讀順序（不要跳）
+--------------------------------
+
+照以下順序讀最容易懂：
+
+1) main.jsx（知道入口）
+2) App.jsx（知道它放了 TodoWrapper）
+3) TodoWrapper.jsx（重點看：資料與功能都在這）
+4) CreateForm.jsx（新增怎麼回報）
+5) Todo.jsx（每一項怎麼顯示/怎麼觸發按鈕）
+6) EditForm.jsx（編輯怎麼回報）
+7) App.css（最後再看樣式怎麼對應 className）
+
+--------------------------------
+7. 一句話總結
+--------------------------------
+
+這是一個 Todo List React 專案：
+- TodoWrapper.jsx 是核心（資料與邏輯）
+- CreateForm / EditForm / Todo.jsx 是 UI 元件
+- App.jsx 負責組畫面
+- main.jsx 是入口
+- App.css 管外觀

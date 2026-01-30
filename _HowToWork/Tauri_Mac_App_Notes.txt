@@ -1,0 +1,200 @@
+YC Todo：從 Vite/React（VS Code 開發）到 macOS Menubar App（Tauri）—步驟筆記
+============================================================
+
+0) 你目前完成的結果
+- React/Vite Todo UI（含 localStorage、timer 等）
+- 用 Tauri 包成 macOS App（.app + .dmg）
+- Tray/Menubar icon 可顯示、點擊顯示/隱藏視窗、點外面自動收起
+- App icon 已換成自訂 icon.icns
+- 不需要再開 VS Code / terminal 才能使用（build 後可獨立執行）
+
+------------------------------------------------------------
+1) 前置需求（只做一次）
+------------------------------------------------------------
+A. 安裝 Xcode Command Line Tools（若已裝會提示已安裝）
+  xcode-select --install
+
+B. 安裝 Rust（Tauri 需要）
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  # 依提示按 Enter（standard installation）
+
+C. 讓 cargo 永久可用（zsh）
+  echo 'source "$HOME/.cargo/env"' >> ~/.zshrc
+  source ~/.zshrc
+
+D. 檢查 Rust/Cargo
+  cargo --version
+  rustc --version
+
+------------------------------------------------------------
+2) 在既有 Vite/React 專案加入 Tauri
+------------------------------------------------------------
+A. 在專案根目錄（跟 package.json 同層）安裝 Tauri CLI
+  npm i -D @tauri-apps/cli
+
+B. 初始化 Tauri
+  npx tauri init
+
+初始化時通常要填：
+- App name：yc_todo（或你想要的名稱）
+- Window title：YC ToDo（或你想要的）
+- Web assets path：../dist  （Vite build 輸出預設是 dist）
+- Dev server URL：http://localhost:5173
+- Frontend dev command：npm run dev
+- Frontend build command：npm run build
+
+------------------------------------------------------------
+3) 讓 Vite dev server 固定在 5173（避免自動跳 5174）
+------------------------------------------------------------
+A. 修改 package.json
+把 scripts.dev 改成：
+  "dev": "vite --port 5173 --strictPort"
+
+B. 如果 5173 被佔用，找出 PID 並關掉
+  lsof -nP -iTCP:5173 -sTCP:LISTEN
+  kill -9 <PID>    # 用查到的 PID 數字替換 <PID>
+
+------------------------------------------------------------
+4) tauri.conf.json（Tauri v2）關鍵設定
+檔案位置：src-tauri/tauri.conf.json
+------------------------------------------------------------
+A. 設定 build 來源（Vite）
+build.frontendDist = "../dist"
+build.devUrl = "http://localhost:5173"
+
+B. 讓視窗像 menubar 小卡（尺寸、無標題列、預設不顯示）
+app.windows 例子：
+{
+  "label": "main",
+  "title": "YC ToDo",
+  "width": 360,
+  "height": 520,
+  "resizable": false,
+  "fullscreen": false,
+  "decorations": false,
+  "transparent": false,
+  "visible": false
+}
+
+C. Bundle identifier 必須唯一（不能用 com.tauri.dev）
+例如：
+  "identifier": "dev.yichenlin.yc.todo"
+注意：identifier 不能用底線 _；可用 . 或 -
+
+D. mac-only 時 bundle icon 最少只需要 icon.icns
+bundle.icon 建議（只做 mac）：
+  "icon": ["icons/icon.icns"]
+
+------------------------------------------------------------
+5) 寫 Tray / Menubar 行為（Tauri v2：改 lib.rs，不改 main.rs）
+------------------------------------------------------------
+為什麼？
+- Tauri v2 預設 main.rs 只有呼叫 app_lib::run()
+- 真正 Builder 設定在 src-tauri/src/lib.rs 的 run()
+
+A. 開啟 tray 功能（Cargo feature）
+檔案：src-tauri/Cargo.toml
+把 tauri 改成：
+  tauri = { version = "2.9.5", features = ["tray-icon"] }
+
+B. Menubar App（不顯示 Dock）
+在 src-tauri/src/lib.rs 的 setup() 加：
+  #[cfg(target_os = "macos")]
+  {
+    use tauri::ActivationPolicy;
+    app.set_activation_policy(ActivationPolicy::Accessory);
+  }
+
+C. Tray icon：點擊 show/hide 視窗、點外面自動收起
+- 使用 TrayIconBuilder
+- 取得視窗 label：必須與 tauri.conf.json 的 "label": "main" 一致
+  app.get_webview_window("main")
+
+D. Tray icon 圖（menubar icon）注意事項
+- macOS menubar 最好用 Template icon（白色+透明、無漸層）
+- 你目前採用「include_bytes + image crate 解碼」的方式載入 PNG
+- 若需要 image crate：
+  在 src-tauri/Cargo.toml 加：
+    image = "0.25"
+
+------------------------------------------------------------
+6) App icon（Finder / Spotlight / Applications）
+------------------------------------------------------------
+A. App icon 用的是 icons/icon.icns（不是 tray 的 n.png）
+- 把你做好的 n.icns 改名成 icon.icns
+- 覆蓋放到：src-tauri/icons/icon.icns
+
+B. 重新 build 後才會生效（dev 不一定會顯示新 app icon）
+
+------------------------------------------------------------
+7) 開發測試 vs 正式 App：你會用到的兩個指令
+------------------------------------------------------------
+A. 開發模式（VS Code/terminal 需要開著）
+  npx tauri dev
+用途：
+- 邊改 React 邊即時看到效果（熱更新）
+- Rust/tauri 改動也會重編譯
+
+B. 正式打包（不需要 VS Code 也能跑）
+  npx tauri build
+成功後產物：
+- .app：
+  src-tauri/target/release/bundle/macos/YC ToDo.app
+- .dmg：
+  src-tauri/target/release/bundle/dmg/YC ToDo_0.1.0_aarch64.dmg
+
+------------------------------------------------------------
+8) 安裝與執行（像一般 mac app）
+------------------------------------------------------------
+A. 打開 build 產物資料夾
+  open src-tauri/target/release/bundle/macos
+
+B. 安裝
+- 把「YC ToDo.app」拖到 Applications
+
+C. 開啟方式
+- Spotlight 搜尋「YC ToDo」直接開
+或 terminal：
+  open -a "YC ToDo"
+或直接：
+  open "src-tauri/target/release/bundle/macos/YC ToDo.app"
+
+D. 第一次被 Gatekeeper 擋住
+- 右鍵 app → Open → 再按 Open
+或
+- System Settings → Privacy & Security → Open Anyway
+
+------------------------------------------------------------
+9) 開機自動常駐（可選）
+------------------------------------------------------------
+System Settings → General → Login Items
+- 按 + 加入 YC ToDo.app
+之後每次開機會自動出現在 menubar。
+
+------------------------------------------------------------
+10) 常見錯誤速查
+------------------------------------------------------------
+A. Port 5173 in use → Vite 跳 5174 → Tauri 連不到
+- 固定 port：vite --port 5173 --strictPort
+- 找 PID：lsof -nP -iTCP:5173 -sTCP:LISTEN
+- kill：kill -9 <PID>
+
+B. cargo not found
+- source ~/.cargo/env
+- 永久：echo 'source "$HOME/.cargo/env"' >> ~/.zshrc
+
+C. Build 報 bundle identifier 不合法/不唯一
+- 不能用 com.tauri.dev
+- 不能含底線 _
+- 用 dev.yichenlin.yc.todo 這種格式
+
+D. Build 報找不到 icons/32x32.png
+- tauri.conf.json bundle.icon 還引用不存在檔案
+- mac-only 只留 icons/icon.icns 即可
+
+E. menubar icon dark mode 看不到
+- tray icon 要用 template（白色+透明）
+- 不要用黑色圖當 tray icon
+
+------------------------------------------------------------
+（完）

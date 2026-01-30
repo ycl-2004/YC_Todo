@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "default permissions",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+
+    "nspopover:allow-show-popover",
+    "nspopover:allow-hide-popover",
+    "nspopover:allow-is-popover-shown",
+
+    "core:tray:default",
+
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-message",
+
+    "fs:default",
+    "fs:allow-read-file",
+
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "$DOWNLOAD/**" }, { "path": "$DESKTOP/**" }]
+    }
+  ]
+}

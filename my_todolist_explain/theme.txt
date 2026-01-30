@@ -1,0 +1,175 @@
+YC Todo — Color System Notes
+============================
+
+This app uses a TOKEN-BASED color system.
+All real colors are defined ONCE as CSS variables (tokens),
+and the rest of the UI only CONSUMES those tokens.
+
+--------------------------------------------------
+1) Where are the REAL color values defined?
+--------------------------------------------------
+
+There are ONLY TWO places where actual color values
+(#hex / rgba) are written.
+
+(A) Theme color tokens (Light / Dark)
+-------------------------------------
+
+Location: global CSS (top of file)
+
+Light theme (default):
+----------------------
+:root {
+  --bg1            → main card background (top)
+  --bg2            → main card background (bottom)
+  --ink            → primary text color
+  --muted          → secondary text color
+  --glass          → translucent UI surfaces
+  --glass-strong   → panels / popovers
+  --stroke         → borders / dividers
+
+Dark theme overrides:
+---------------------
+:root[data-theme="dark"] {
+  --bg1            → dark background top
+  --bg2            → dark background bottom
+  --ink            → light text
+  --muted          → dimmed text
+  --glass          → dark glass surfaces
+  --glass-strong   → dark panels
+  --stroke         → light borders
+}
+
+IMPORTANT:
+- Light theme colors live in :root
+- Dark theme ONLY overrides tokens
+- No component defines its own colors
+
+
+(B) Accent color (Pink / Purple / Blue / Gray)
+----------------------------------------------
+
+Accent color exists as ONE variable:
+
+  --accent        → main brand color
+  --accent-glow   → soft glow / radial highlights
+
+Default value (CSS):
+--------------------
+:root {
+  --accent: #d4a5c1;
+  --accent-glow: rgba(212,165,193,0.18);
+}
+
+Runtime override (App):
+-----------------------
+Accent is changed dynamically via:
+- Tauri tray menu (Rust)
+- Event → React
+- React updates CSS variable
+
+Rust (menu selection):
+----------------------
+Accent: Pink    → "#d4a5c1"
+Accent: Purple  → "#8e44ad"
+Accent: Blue    → "#2d7ff9"
+Accent: Gray    → "#4b4b4b"
+
+React applies it to CSS:
+------------------------
+document.documentElement.style.setProperty("--accent", accent);
+document.documentElement.style.setProperty("--accent-glow", rgbaFromAccent);
+
+--------------------------------------------------
+2) Where are colors USED (but NOT defined)?
+--------------------------------------------------
+
+All UI components ONLY read variables:
+
+- Card background     → var(--bg1), var(--bg2)
+- Text color          → var(--ink)
+- Muted text          → var(--muted)
+- Buttons / badges    → var(--accent)
+- Highlights / glow   → var(--accent-glow)
+- Panels              → var(--glass), var(--glass-strong)
+- Borders             → var(--stroke)
+
+Examples:
+---------
+.menu-card     → uses bg1/bg2
+.badge         → uses accent
+.sound-panel   → uses glass-strong
+.todo text     → uses ink
+.subtitles     → uses muted
+
+NO hard-coded colors inside components.
+
+--------------------------------------------------
+3) How theme switching actually works
+--------------------------------------------------
+
+Theme mode values:
+------------------
+"light"   → forces light tokens
+"dark"    → forces dark tokens
+"system"  → follows OS preference
+
+What React does:
+----------------
+- Sets data-theme attribute on <html>
+- data-theme="dark" activates dark overrides
+- data-theme="light" removes overrides
+
+System mode:
+------------
+- Reads prefers-color-scheme
+- Updates automatically if OS theme changes
+
+--------------------------------------------------
+4) How to change the app's look safely
+--------------------------------------------------
+
+If you want to:
+
+Change overall brightness:
+--------------------------
+→ Edit --bg1 / --bg2 in :root and [data-theme="dark"]
+
+Change text contrast:
+---------------------
+→ Edit --ink and --muted
+
+Change “glass” feeling:
+-----------------------
+→ Edit --glass and --glass-strong opacity
+
+Change brand color:
+-------------------
+→ Edit accent hex values in Rust menu
+→ OR change default --accent in :root
+
+DO NOT:
+-------
+✗ Add hard-coded colors in components
+✗ Use background: #fff / #000 in UI
+✗ Mix accent + theme logic together
+
+--------------------------------------------------
+5) Mental model (important)
+--------------------------------------------------
+
+Think of colors as:
+
+THEME TOKENS (Light / Dark)
+        ↓
+ACCENT TOKEN (brand color)
+        ↓
+UI COMPONENTS (consume only)
+
+If something looks wrong,
+the fix is ALWAYS in the token section,
+NOT in the component CSS.
+
+--------------------------------------------------
+END
+--------------------------------------------------

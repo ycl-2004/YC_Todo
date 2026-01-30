@@ -1,0 +1,330 @@
+Todo.jsx 逐行解釋（0 JSX 經驗版 + 括號/props/JSX 全拆）
+====================================================
+
+這個檔案 Todo.jsx 的工作：
+- 顯示「單一筆 todo」
+- 如果 todo.isEditing = true → 顯示 EditForm（編輯畫面）
+- 否則 → 顯示正常 todo（文字 + 編輯/刪除 icon）
+- 使用者點擊時，呼叫從 TodoWrapper 傳下來的函式（props）
+
+------------------------------------------------------------
+1) import 區：引入圖示與子元件
+------------------------------------------------------------
+
+01: import { MdDelete, MdEdit } from "react-icons/md";
+
+解釋：
+- "react-icons/md"：react-icons 套件裡的 Material Design icon 集合
+- MdDelete、MdEdit：兩個 icon component（本質上也是 React 元件）
+
+為什麼要用 { }？
+- { MdDelete, MdEdit }：named exports（命名匯出）
+- 代表你從這個套件裡“挑兩個”拿來用
+
+括號/符號：
+- { }：ES module 語法（不是物件），表示「我要引入這兩個名字」
+- "..."：字串（套件路徑）
+
+------------------------------------------------------------
+
+02: import EditForm from "./EditForm.jsx";
+
+解釋：
+- 從同資料夾引入 EditForm 元件
+- 這裡是 default export，所以沒有 { }
+
+括號/符號：
+- "./EditForm.jsx"：相對路徑
+- 沒有 { }：代表引入 default export
+
+------------------------------------------------------------
+2) function Todo(...)：定義 Todo 元件 + props 解釋
+------------------------------------------------------------
+
+03: function Todo({ todo, deleteTodo, toggleComplete, toggleIsEditing, editTodo }) {
+
+解釋（超重要）：
+- Todo 是一個 React component（元件）
+- 它會被 TodoWrapper 這樣使用：
+  <Todo todo={todo} deleteTodo={deleteTodo} ... />
+
+props 是什麼？
+- props = 父元件傳進來的資料與函式
+- 你這裡沒有寫 props，而是直接「解構」props
+
+{ todo, deleteTodo, toggleComplete, toggleIsEditing, editTodo } 是什麼？
+- 這是「物件解構」（object destructuring）
+- 等同於：
+  function Todo(props) {
+    const todo = props.todo;
+    const deleteTodo = props.deleteTodo;
+    ...
+  }
+
+括號/符號：
+- function Todo( ... )：定義函式元件
+- ( ... )：參數位置
+- { ... }（在參數裡）：物件解構，從 props 物件拿欄位
+
+------------------------------------------------------------
+3) return 區：用“三元條件/條件渲染”決定顯示 EditForm 或正常 todo
+------------------------------------------------------------
+
+04:   return todo.isEditing ? (
+
+解釋：
+- 這是一個「條件運算子（ternary operator）」：條件 ? A : B
+- todo.isEditing 為 true → 回傳 A（EditForm）
+- 否則 → 回傳 B（正常 todo UI）
+
+為什麼這裡不用 if？
+- React 常見寫法：用 ternary 直接在 return 裡決定要渲染什麼
+
+括號/符號：
+- return：回傳要顯示的 JSX
+- todo.isEditing：讀取 todo 物件的欄位
+- ?：如果條件為 true
+- ( ... )：用括號包住 JSX（多行）
+
+------------------------------------------------------------
+
+05-09:
+    <EditForm
+      todo={todo}
+      toggleIsEditing={toggleIsEditing}
+      editTodo={editTodo}
+    />
+
+解釋：
+- 條件為 true 時顯示 EditForm
+- 你把三個 props 傳給 EditForm：
+  1) todo：讓 EditForm 知道目前這筆 todo 是什麼
+  2) toggleIsEditing：讓 EditForm 可以關閉編輯模式
+  3) editTodo：讓 EditForm 送出更新內容
+
+props 語法怎麼看？
+- todo={todo}：
+  - 左邊 todo：prop 名稱（EditForm 內會接到）
+  - 右邊 {todo}：這裡的 JS 變數 todo（實際資料）
+
+括號/符號：
+- <EditForm ... />：JSX 元件標籤（自閉合）
+- { }：在 JSX 裡插入 JavaScript 表達式（把變數/函式當值傳入）
+
+------------------------------------------------------------
+
+10:   ) : (
+
+解釋：
+- 這是 ternary 的「否則」部分
+- 條件為 false 時，回傳下面這個正常 UI
+
+括號/符號：
+- :：ternary 的 else
+- ( ... )：多行 JSX 的括號
+
+------------------------------------------------------------
+4) 正常 UI：外層 div + 動態 className
+------------------------------------------------------------
+
+11:     <div className={`todo ${todo.isCompleted ? "completed" : ""}`}>
+
+這行很關鍵：你在組「className 字串」，而且是動態的。
+
+拆解：
+- className=...：JSX 裡設定 CSS class 用 className
+- `todo ${ ... }`：這是 JavaScript 的 template literal（模板字串）
+  - 用反引號 ` `（不是單引號）
+- todo.isCompleted ? "completed" : ""：
+  - 如果完成 → 加上 "completed"
+  - 沒完成 → 加上空字串（不加任何額外 class）
+
+所以結果可能是：
+- 未完成：className = "todo "
+- 已完成：className = "todo completed"
+
+括號/符號（非常重要）：
+- { ... }：JSX 插入 JS
+- `...`：模板字串（template literal）
+- ${ ... }：在模板字串裡插入 JS 表達式
+- ? :：ternary（第二次出現）
+- ""：空字串
+- <div ...>：開標籤
+
+------------------------------------------------------------
+5) <p>：顯示文字 + 點擊切換完成
+------------------------------------------------------------
+
+12:       <p onClick={() => toggleComplete(todo.id)}>{todo.content}</p>
+
+這行同時做兩件事：
+- 顯示 todo.content
+- 點擊時呼叫 toggleComplete(todo.id)
+
+拆解 onClick：
+- onClick={...}：事件處理器
+- () => toggleComplete(todo.id)：
+  - 這是一個箭頭函式（匿名函式）
+  - 為什麼不直接寫 toggleComplete(todo.id)？
+    - 因為那會「立刻執行」
+    - 你要的是「等點擊時才執行」
+  - 所以要包一層函式：() => ...
+
+顯示文字：
+- {todo.content}：在 JSX 裡插入 JS，顯示內容
+
+括號/符號：
+- onClick={ ... }：JSX 事件 props
+- () => ...：箭頭函式
+- toggleComplete(todo.id)：呼叫父元件傳下來的函式
+- (todo.id) 裡的 ()：函式呼叫參數
+- {todo.content}：JSX 插入變數
+
+------------------------------------------------------------
+6) icon 區：編輯 + 刪除
+------------------------------------------------------------
+
+13:       <div>
+
+- 包住兩個 icon（MdEdit 和 MdDelete）
+
+------------------------------------------------------------
+
+14-20:
+        <MdEdit
+          onClick={() => {
+            toggleIsEditing(todo.id);
+          }}
+          style={{ cursor: "pointer" }}
+        />
+
+解釋：這是一個「可點擊的編輯 icon」。
+
+A) onClick 部分（多行寫法）
+- onClick={() => { ... }}：
+  - 點擊時執行箭頭函式
+  - 這裡箭頭函式用了 block { }，所以可以寫多行
+- toggleIsEditing(todo.id);：
+  - 呼叫父元件傳下來的 toggleIsEditing
+  - 目的是切換 isEditing（進入或退出編輯模式）
+
+注意：你這裡用了 { } block，但其實只有一行，也可以簡寫成：
+- onClick={() => toggleIsEditing(todo.id)}
+
+B) style 部分（inline style）
+- style={{ cursor: "pointer" }}：
+  - JSX 的 style 不是字串
+  - style 需要一個「物件」
+  - cursor: "pointer"：滑鼠移上去變手指
+
+為什麼是 style={{ ... }} 兩層大括號？
+- 第一層 { }：JSX 插入 JavaScript 表達式
+- 第二層 { }：JavaScript 物件本體
+
+括號/符號總整理：
+- <MdEdit ... />：icon component（也是 JSX 元件）
+- onClick={() => { ... }}：
+  - ()：參數
+  - =>：箭頭函式
+  - { ... }：函式 block
+- toggleIsEditing(todo.id);：
+  - ()：函式呼叫
+- style={{ cursor: "pointer" }}：
+  - 外層 { }：JSX 插入 JS
+  - 內層 { }：物件
+
+------------------------------------------------------------
+
+21-27:
+        <MdDelete
+          onClick={() => {
+            deleteTodo(todo.id);
+          }}
+          style={{ cursor: "pointer", marginLeft: "7px" }}
+        />
+
+解釋：這是一個「可點擊的刪除 icon」。
+
+A) onClick：
+- 點擊時 deleteTodo(todo.id)
+- 同理：可以簡寫成 onClick={() => deleteTodo(todo.id)}
+
+B) style：
+- cursor: "pointer"：手指
+- marginLeft: "7px"：左邊留 7px 間距
+- 這裡 style 物件裡有兩個欄位，用逗號分隔
+
+括號/符號：
+- style={{ cursor: "pointer", marginLeft: "7px" }}：
+  - 外層 { }：JSX
+  - 內層 { }：物件
+  - 逗號分隔兩個 key-value
+
+------------------------------------------------------------
+7) 收尾：關閉標籤與函式
+------------------------------------------------------------
+
+28:       </div>
+
+- 關閉 icon 區的 div
+
+29:     </div>
+
+- 關閉外層 todo div
+
+30:   );
+
+- 結束 ternary 的 ( ... ) 回傳
+- 也等於結束 return 的整個 JSX
+
+31: }
+
+- 結束 function Todo(...) 的 block
+
+------------------------------------------------------------
+8) export default：讓別的檔案可以 import Todo
+------------------------------------------------------------
+
+32: export default Todo;
+
+解釋：
+- 這個檔案的預設輸出是 Todo
+- TodoWrapper 才能：
+  import Todo from "./Todo";
+
+------------------------------------------------------------
+9) 本檔案最重要的 JSX / 括號概念總結
+------------------------------------------------------------
+
+(1) props（父傳子）
+- TodoWrapper 傳入：
+  todo / deleteTodo / toggleComplete / toggleIsEditing / editTodo
+- Todo 透過參數解構拿到它們：
+  function Todo({ todo, deleteTodo, ... }) { ... }
+
+(2) ternary 條件渲染
+- todo.isEditing ? <EditForm .../> : <div ...>...</div>
+
+(3) JSX 裡的 { }
+- {todo.content}：顯示 JS 變數
+- onClick={...}：傳入 JS 函式
+- className={`...${...}`}: 用模板字串 + ${...}
+
+(4) style={{ ... }} 為何兩層大括號
+- 外層 { }：JSX 插入 JS
+- 內層 { }：JS 物件
+
+(5) onClick={() => ...} 為何要用箭頭函式包住
+- 避免 render 時立刻執行
+- 讓事件發生時才執行
+
+------------------------------------------------------------
+10) 下一步建議（最合理的下一個檔案）
+------------------------------------------------------------
+
+下一個最該逐行拆的是 EditForm.jsx 或 CreateForm.jsx，因為：
+- 你已經看到 Todo 如何切換 isEditing
+- EditForm 會用到 editTodo / toggleIsEditing
+- 你會真正理解「編輯怎麼送回 TodoWrapper 更新 state」
+
+你把 EditForm.jsx 貼上來，我可以用同樣 txt 格式逐行拆到每個括號。
