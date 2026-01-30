@@ -1,0 +1,47 @@
+/* ============================================================
+   11) Buttons
+   ============================================================ */
+.btn {
+  padding: 8px 12px;
+  border-radius: 12px;
+
+  border: 1px solid var(--card-border);
+  cursor: pointer;
+
+  background: linear-gradient(
+    180deg,
+    var(--btn-primary-bg),
+    var(--btn-primary-bg2)
+  );
+  color: var(--btn-primary-text);
+
+  font-weight: 900;
+  font-size: 12px;
+
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--accent) 18%, transparent);
+
+  transition:
+    transform 120ms var(--ease),
+    filter 120ms var(--ease),
+    opacity 120ms var(--ease);
+}
+
+.btn:hover {
+  filter: brightness(1.03);
+}
+
+.btn:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.ghost {
+  background: var(--surface-1);
+  color: var(--ink);
+  box-shadow: none;
+  border: 1px solid var(--card-border);
+}

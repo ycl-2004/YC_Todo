@@ -1,0 +1,149 @@
+/* ============================================================
+   4) Header
+   ============================================================ */
+.menu-header {
+  text-align: left;
+  margin-bottom: 5px;
+  padding-top: 4px;
+}
+
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Title + Subtitle */
+.title-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  overflow: hidden;
+}
+
+/* Title */
+.title-wrap h1,
+.title-input {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 220px;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.2px;
+}
+
+.title-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  height: 26px;
+  width: 100%;
+}
+
+/* Subtitle */
+.subtitle,
+.subtitle-input {
+  flex: 0 0 auto;
+  max-width: 160px;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.8;
+  line-height: 1;
+}
+
+.subtitle {
+  margin-top: 6px;
+  line-height: 1.25;
+  opacity: 0.75;
+}
+
+.subtitle-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  height: 14px;
+}
+
+/* hover hint */
+.title-wrap h1:hover,
+.title-wrap .subtitle:hover {
+  cursor: text;
+  opacity: 0.85;
+}
+
+/* badges */
+.header-badges {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-badges .badge,
+.header-badges .badge-music {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+  line-height: 1;
+
+  font-size: 12px;
+  font-weight: 900;
+
+  background: var(--accent);
+  color: #fff;
+
+  border: 1px solid var(--card-border);
+  box-shadow: 0 8px 18px rgba(212, 165, 193, 0.28);
+}
+
+.badge-timer {
+  font-variant-numeric: tabular-nums;
+}
+
+.badge-music {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid var(--card-border);
+  background: var(--surface-1);
+  cursor: pointer;
+
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.badge-music:hover {
+  filter: brightness(1.04);
+}

@@ -1,0 +1,76 @@
+/* ============================================================
+   5) Create Form
+   ============================================================ */
+.create-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  height: 42px;
+  padding: 6px 10px;
+
+  border-radius: 999px;
+  border: 2px solid var(--form-border);
+  background: var(--surface-2);
+  box-shadow: var(--shadow-sm);
+}
+
+.create-form:focus-within {
+  border-color: var(--form-border-focus);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent),
+    var(--shadow-sm);
+}
+
+.create-form > input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+
+  border: none;
+  outline: none;
+  background: transparent;
+
+  padding: 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.create-form > input::placeholder {
+  color: color-mix(in srgb, var(--ink) 40%, transparent);
+}
+
+.create-form .minute-select {
+  display: flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.create-form .minute-btn,
+.create-form > button {
+  height: 28px;
+  line-height: 28px;
+  margin: 0;
+}
+
+/* add button (+) */
+.create-form > button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 999px;
+
+  background: color-mix(in srgb, var(--accent) 65%, transparent);
+  color: var(--btn-primary-text);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  font-size: 16px;
+  font-weight: 900;
+
+  margin-right: 2px;
+}

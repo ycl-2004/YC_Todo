@@ -1,0 +1,126 @@
+/* ============================================================
+   12) Sound Panel
+   ============================================================ */
+.sound-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+
+  width: 280px;
+  padding: 12px;
+  border-radius: 16px;
+
+  background: var(--surface-3);
+  border: 1px solid var(--stroke);
+  color: var(--ink);
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  z-index: 9999;
+}
+
+.sound-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.sound-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+.sound-meta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sound-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.sound-panel .btn.ghost {
+  border-radius: 12px;
+  padding: 9px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.sound-slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sound-slider .muted {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 58px;
+}
+
+.sound-slider input[type="range"] {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  outline: none;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+}
+
+.sound-slider input[type="range"]::-webkit-slider-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+
+  background: var(--surface-3);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-sm);
+
+  cursor: pointer;
+
+  -webkit-appearance: none;
+  appearance: none;
+
+  transition: transform 120ms var(--ease);
+}
+
+.sound-slider input[type="range"]::-webkit-slider-thumb:active {
+  transform: scale(1.06);
+}
+
+.sound-slider input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+}
+
+.sound-slider input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+
+  background: var(--surface-3);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-sm);
+
+  cursor: pointer;
+}

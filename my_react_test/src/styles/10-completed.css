@@ -1,0 +1,57 @@
+/* ============================================================
+   10) Completed Panel
+   ============================================================ */
+.collapse-btn {
+  width: 100%;
+  padding: 10px 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--card-border);
+
+  background: var(--surface-1);
+  color: var(--ink);
+
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+
+  transition:
+    transform 120ms var(--ease),
+    filter 120ms var(--ease),
+    opacity 120ms var(--ease);
+}
+
+.collapse-btn:hover {
+  filter: brightness(1.02);
+}
+
+.collapse-btn:active {
+  transform: translateY(1px);
+}
+
+.collapse-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+.completed-list {
+  margin-top: 10px;
+
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--todo-row-gap);
+
+  scrollbar-width: none;
+}
+.completed-list::-webkit-scrollbar {
+  display: none;
+}

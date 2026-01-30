@@ -1,0 +1,58 @@
+/* ============================================================
+   13) Drag Reorder
+   ============================================================ */
+.todo .drag-handle {
+  width: 26px;
+  height: 26px;
+  border-radius: 10px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1;
+
+  background: var(--surface-1);
+  border: 1px solid var(--card-border);
+  color: var(--muted);
+
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+
+  cursor: grab;
+  opacity: 0.8;
+
+  transition:
+    transform 120ms var(--ease),
+    filter 120ms var(--ease),
+    opacity 120ms var(--ease);
+}
+
+.todo:not(.locked) .drag-handle:hover {
+  opacity: 1;
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.todo:not(.locked) .drag-handle:active {
+  cursor: grabbing;
+  transform: scale(0.96);
+}
+
+.todo.locked .drag-handle {
+  cursor: not-allowed;
+  opacity: 0.4;
+  filter: none;
+  transform: none;
+}
+
+body.is-reordering,
+body.is-reordering * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none !important;
+  cursor: grabbing !important;
+}
