@@ -6,6 +6,12 @@ use tauri::{ActivationPolicy, Emitter, Manager};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_nspopover::{AppExt as _, ToPopoverOptions, WindowExt as _};
+use std::process::{Child, Command};
+use std::sync::Mutex;
+use tauri::State;
+
+
+struct AlarmState(Mutex<Option<Child>>);
 
 /// ✅ Open system file picker safely in menubar/popover mode
 /// Returns: Some(path) or None
@@ -49,13 +55,52 @@ async fn pick_audio(app: tauri::AppHandle) -> Result<Option<String>, String> {
   Ok(picked)
 }
 
+/// ✅ Background-safe alarm playback (macOS)
+/// Uses system `afplay` so it works even when WebView audio is suspended.
+#[tauri::command]
+fn play_alarm(state: State<AlarmState>, path: String, volume: f32) -> Result<(), String> {
+  // 先停掉上一個 alarm（避免重疊播放）
+  {
+    let mut guard = state.0.lock().map_err(|_| "Alarm mutex poisoned".to_string())?;
+    if let Some(mut child) = guard.take() {
+      let _ = child.kill();
+    }
+  }
+
+  // afplay -v 需要 0..1
+  let vol = volume.clamp(0.0, 1.0);
+
+  let child = Command::new("afplay")
+    .arg("-v")
+    .arg(format!("{:.3}", vol))
+    .arg(path)
+    .spawn()
+    .map_err(|e| format!("spawn afplay failed: {}", e))?;
+
+  let mut guard = state.0.lock().map_err(|_| "Alarm mutex poisoned".to_string())?;
+  *guard = Some(child);
+
+  Ok(())
+}
+
+#[tauri::command]
+fn stop_alarm(state: State<AlarmState>) -> Result<(), String> {
+  let mut guard = state.0.lock().map_err(|_| "Alarm mutex poisoned".to_string())?;
+  if let Some(mut child) = guard.take() {
+    let _ = child.kill();
+  }
+  Ok(())
+}
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_nspopover::init())
-    .invoke_handler(tauri::generate_handler![pick_audio])
+    .manage(AlarmState(Mutex::new(None)))
+    .invoke_handler(tauri::generate_handler![pick_audio, play_alarm, stop_alarm])
     .setup(|app| {
       // ✅ macOS: menubar app (no Dock)
       #[cfg(target_os = "macos")]

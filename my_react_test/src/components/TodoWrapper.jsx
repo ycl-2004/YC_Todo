@@ -407,11 +407,48 @@ function TodoWrapper() {
     return audioRef.current;
   };
 
+  // ✅ 原生播放（背景保證）：交給 Rust 用系統播放器播 mp3
+  const playAlarmNative = async () => {
+    try {
+      if (!soundPath) return false;
+
+      // 你的 slider 是 0..3.5，macOS afplay -v 需要 0..1
+      const raw = Number(soundVolume);
+      const vol01 = Math.max(
+        0,
+        Math.min(1, Number.isFinite(raw) ? raw / 3.5 : 1),
+      );
+
+      await invoke("play_alarm", {
+        path: soundPath,
+        volume: vol01,
+      });
+
+      return true;
+    } catch (e) {
+      console.error("[alarm] native play failed:", e);
+      return false;
+    }
+  };
+
   const playAlarmSound = async () => {
     if (!soundDataUrl) return false;
 
     try {
       const a = await ensureAudioAlive();
+
+      // ✅ 如果 AudioContext 沒在 running，就代表「可能會看起來播放但沒聲音」
+      // 這時直接回 false，讓通知 beep 當保險
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state !== "running") {
+        try {
+          await ctx.resume();
+        } catch {}
+      }
+      if (ctx && ctx.state !== "running") {
+        console.warn("[alarm] audio ctx not running, fallback to beep");
+        return false;
+      }
 
       try {
         a.pause();
@@ -700,17 +737,29 @@ function TodoWrapper() {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         const ctx = new AudioCtx();
+
+        // ✅ 背景/省電狀態下可能 suspended，先嘗試喚醒
+        try {
+          if (ctx.state === "suspended") await ctx.resume();
+        } catch {}
+
         const o = ctx.createOscillator();
         const g = ctx.createGain();
         o.type = "sine";
         o.frequency.value = 880;
         g.gain.value = 0.06;
+
         o.connect(g);
         g.connect(ctx.destination);
+
         o.start();
         setTimeout(() => {
-          o.stop();
-          ctx.close();
+          try {
+            o.stop();
+          } catch {}
+          try {
+            ctx.close();
+          } catch {}
         }, 180);
       }
     } catch {}
@@ -864,11 +913,14 @@ function TodoWrapper() {
 
       notifiedRef.current = true;
 
-      const ok = await playAlarmSound();
+      const ok = await playAlarmNative();
+
+      const isBg = document.visibilityState !== "visible";
 
       fireNotification({
         title: "Time’s up!",
         body: `Finished: ${activeTodo.content} (${activeTodo.minutes ?? 25}m)`,
+        // ✅ 背景一律 beep（就算 mp3 看起來成功也要保險）
         beep: !ok,
       });
 
