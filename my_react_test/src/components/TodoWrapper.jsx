@@ -4,10 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { listen } from "@tauri-apps/api/event";
+import TagManager from "./TagManager";
 
 const STORAGE_KEY = "menubar_todo_v1";
 const SETTINGS_KEY = "menubar_todo_settings_v1";
 const TITLE_KEY = "menubar_title_v1";
+const TAGS_KEY = "menubar_tags_v1";
 
 function formatTime(seconds) {
   const s = Math.max(0, seconds);
@@ -35,7 +37,14 @@ function TodoWrapper() {
   // -----------------------------
   const initialLoadedRef = useRef(false);
 
-  const TAGS = ["All", "Study", "Exam", "Life", "Daily", "Other"];
+  const DEFAULT_TAGS = ["Study", "Exam", "Life", "Daily", "Other"];
+
+  const [tags, setTags] = useState(() => {
+    const raw = localStorage.getItem(TAGS_KEY);
+    const arr = raw ? safeParse(raw, null) : null;
+    return Array.isArray(arr) && arr.length ? arr : DEFAULT_TAGS;
+  });
+
   const [activeTag, setActiveTag] = useState("All");
 
   const [accent, setAccent] = useState(() => {
@@ -1016,6 +1025,18 @@ function TodoWrapper() {
   }, [accent]);
 
   // -----------------------------
+  // Tag list customize
+  // -----------------------------
+  useEffect(() => {
+    localStorage.setItem(TAGS_KEY, JSON.stringify(tags));
+  }, [tags]);
+
+  // ✅ UX: switching tag -> collapse Completed to avoid empty open panel
+  useEffect(() => {
+    setShowCompleted(false);
+  }, [activeTag]);
+
+  // -----------------------------
   // CRUD
   // -----------------------------
   const addTodo = (content, minutes, tag) => {
@@ -1294,7 +1315,7 @@ function TodoWrapper() {
           </div>
         </header>
 
-        <CreateForm addTodo={addTodo} isLocked={isLocked} />
+        <CreateForm addTodo={addTodo} isLocked={isLocked} tags={tags} />
 
         <div className="now-bar">
           <div className="now-bar-left">
@@ -1315,16 +1336,28 @@ function TodoWrapper() {
 
         <div className="now-section">
           <div className="tag-bar">
-            {TAGS.map((t) => (
-              <button
-                key={t}
-                type="button"
-                className={`tag-chip ${activeTag === t ? "active" : ""}`}
-                onClick={() => setActiveTag(t)}
-              >
-                {t}
-              </button>
-            ))}
+            <div className="tag-bar-left">
+              {["All", ...tags].map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={`tag-chip ${activeTag === t ? "active" : ""}`}
+                  onClick={() => setActiveTag(t)}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            <div className="tag-bar-right">
+              <TagManager
+                tags={tags}
+                setTags={setTags}
+                activeTag={activeTag}
+                setActiveTag={setActiveTag}
+                disabled={isLocked}
+              />
+            </div>
           </div>
 
           <div className="now-list">

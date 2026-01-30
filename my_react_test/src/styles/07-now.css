@@ -1,6 +1,7 @@
 /* ============================================================
-   7) Now Section (Fixed tag bar + list scroll)
+   7) Now Section (Tag bar + list scroll + Now bar)
    ============================================================ */
+
 .now-section {
   flex: 1 1 auto;
   min-height: 0;
@@ -8,12 +9,16 @@
   flex-direction: column;
 }
 
+/* -----------------------------
+   Tag bar (outer container)
+----------------------------- */
 .now-section .tag-bar {
   flex: 0 0 auto;
 
   display: flex;
-  flex-wrap: nowrap;
-  gap: 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 
   padding: 4px 6px;
   margin: 6px 0 10px;
@@ -22,14 +27,31 @@
   border: 1px solid color-mix(in srgb, var(--card-border) 55%, transparent);
   background: var(--surface-2);
   box-shadow: var(--shadow-sm);
+}
+
+/* left: chips scroll area */
+.tag-bar-left {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
 
   overflow-x: auto;
   scrollbar-width: none;
 }
-.now-section .tag-bar::-webkit-scrollbar {
+.tag-bar-left::-webkit-scrollbar {
   display: none;
 }
 
+/* right: manager button area */
+.tag-bar-right {
+  flex: 0 0 auto;
+  position: relative;
+}
+
+/* chips */
 .now-section .tag-chip {
   padding: 0 9px;
   height: 24px;
@@ -51,6 +73,19 @@
   user-select: none;
 }
 
+.now-section .tag-chip:hover {
+  filter: brightness(1.03);
+}
+
+.now-section .tag-chip.active {
+  background: color-mix(in srgb, var(--accent) 40%, var(--chip-bg));
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--ink);
+}
+
+/* -----------------------------
+   Now list (scroll)
+----------------------------- */
 .now-list {
   flex: 1 1 auto;
   min-height: 0;
@@ -68,12 +103,17 @@
   display: none;
 }
 
+/* -----------------------------
+   Completed panel spacing
+----------------------------- */
 .completed-panel {
   flex: 0 0 auto;
   margin-top: 12px;
 }
 
-/* Now bar */
+/* -----------------------------
+   Now bar (top bar)
+----------------------------- */
 .now-bar {
   width: 100%;
   padding: 8px 8px;
@@ -158,4 +198,250 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ============================================================
+   TagManager (right side)
+   ============================================================ */
+
+.tag-mgr {
+  position: relative;
+}
+
+.tag-mgr-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+
+  border: 1px solid var(--chip-border);
+  background: var(--chip-bg-strong);
+  color: var(--ink);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.tag-mgr-btn:hover {
+  filter: brightness(1.04);
+}
+
+.tag-mgr.is-disabled .tag-mgr-btn {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* popover */
+.tag-mgr-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+
+  width: min(230px, calc(100vw - 24px)); /* ✅ 小視窗不爆 */
+  padding: 10px;
+  border-radius: 16px;
+
+  background: var(--surface-3);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow-lg);
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+
+  z-index: 99999;
+
+  max-height: min(270px, calc(100vh - 230px));
+
+  overflow: hidden; /* ✅ 改回不讓 pop 自己滾 */
+  display: flex;
+  flex-direction: column;
+}
+
+.tag-mgr-head {
+  position: relative; /* ✅ 新增 */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end; /* ✅ 讓 X 留在右邊 */
+  margin-bottom: 10px;
+}
+
+.tag-mgr-title {
+  position: absolute; /* ✅ 新增 */
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.tag-mgr-x {
+  width: 26px;
+  height: 26px;
+  border-radius: 10px;
+
+  border: 1px solid var(--chip-border);
+  background: var(--surface-2);
+  color: var(--ink);
+
+  cursor: pointer;
+}
+
+.tag-mgr-x:hover {
+  filter: brightness(1.04);
+}
+
+.tag-mgr-add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  align-items: center; /* ✅ */
+}
+
+.tag-mgr-input {
+  flex: 1 1 0; /* ✅ 改這行（更容易 shrink） */
+  min-width: 0; /* ✅ 加這行（最關鍵，沒它會爆） */
+  height: 30px;
+  border-radius: 12px;
+
+  border: 1px solid color-mix(in srgb, var(--card-border) 60%, transparent);
+  background: var(--surface-2);
+  color: var(--ink);
+
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  outline: none;
+}
+
+.tag-mgr-input:focus {
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.tag-mgr-add-btn {
+  flex: 0 0 auto; /* ✅ */
+  white-space: nowrap; /* ✅ */
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 12px;
+
+  border: 1px solid var(--card-border);
+  background: linear-gradient(
+    180deg,
+    var(--btn-primary-bg),
+    var(--btn-primary-bg2)
+  );
+  color: var(--btn-primary-text);
+
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.tag-mgr-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* list */
+.tag-mgr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+
+  flex: 1 1 auto; /* ✅ 用剩下高度 */
+  min-height: 0; /* ✅ 關鍵：不然 overflow 不會生效 */
+  overflow-y: auto;
+
+  padding-right: 2px;
+  padding-bottom: 1px; /* ✅ 新增：確保最後一列露出 */
+  scrollbar-width: none;
+}
+
+.tag-mgr-list::-webkit-scrollbar {
+  display: none;
+}
+
+.tag-mgr-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 4px 6px; /* ✅ row 更薄 */
+  border-radius: 10px;
+
+  background: var(--surface-2);
+  border: 1px solid color-mix(in srgb, var(--card-border) 55%, transparent);
+}
+
+.tag-mgr-name {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tag-mgr-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+/* mini buttons */
+.tag-mgr-mini {
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 10px;
+
+  border: 1px solid var(--chip-border);
+  background: var(--chip-bg);
+  color: var(--ink);
+
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.tag-mgr-mini:hover {
+  filter: brightness(1.04);
+}
+
+.tag-mgr-mini.ghost {
+  background: var(--surface-1);
+}
+
+.tag-mgr-mini.danger:hover {
+  background: color-mix(in srgb, red 12%, var(--btn-icon-bg));
+}
+
+/* rename input */
+.tag-mgr-rename {
+  flex: 1 1 auto;
+  height: 26px;
+  border-radius: 10px;
+
+  border: 1px solid color-mix(in srgb, var(--card-border) 60%, transparent);
+  background: var(--surface-1);
+  color: var(--ink);
+
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 900;
+  outline: none;
+}
+
+.tag-mgr-rename:focus {
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.tag-mgr-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 6px;
 }

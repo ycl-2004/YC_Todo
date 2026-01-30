@@ -1,13 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import MinuteSelect from "./MinuteSelect";
 import TagSelect from "./TagSelect";
 
-const TAG_OPTIONS = ["Study", "Exam", "Life", "Daily", "Other"];
-
-function CreateForm({ addTodo, isLocked }) {
+function CreateForm({ addTodo, isLocked, tags }) {
   const [task, setTask] = useState("");
   const [minutes, setMinutes] = useState(25);
-  const [tag, setTag] = useState("Study");
+  const [tag, setTag] = useState(tags?.[0] ?? "Study");
 
   const isValid = task.trim().length > 0;
 
@@ -18,6 +16,12 @@ function CreateForm({ addTodo, isLocked }) {
     addTodo(task.trim(), Number(minutes), tag);
     setTask("");
   };
+
+  useEffect(() => {
+    // 如果目前選到的 tag 被刪掉了，就回到第一個 tag
+    if (!tags?.length) return;
+    if (!tags.includes(tag)) setTag(tags[0]);
+  }, [tags, tag]);
 
   return (
     <form className="create-form" onSubmit={handleSubmit}>
@@ -30,11 +34,10 @@ function CreateForm({ addTodo, isLocked }) {
         autoFocus
       />
 
-      {/* ✅ Custom Tag Select */}
       <TagSelect
         value={tag}
         onChange={setTag}
-        options={TAG_OPTIONS}
+        options={tags}
         disabled={isLocked}
       />
 
