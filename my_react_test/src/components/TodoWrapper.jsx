@@ -431,6 +431,16 @@ function TodoWrapper() {
     }
   };
 
+  const stopAlarmNative = async () => {
+    try {
+      await invoke("stop_alarm");
+      return true;
+    } catch (e) {
+      console.error("[alarm] native stop failed:", e);
+      return false;
+    }
+  };
+
   const playAlarmSound = async () => {
     if (!soundDataUrl) return false;
 
@@ -657,14 +667,16 @@ function TodoWrapper() {
     }
   };
 
-  const clearSound = () => {
+  const clearSound = async () => {
     revokeUrlIfNeeded(soundDataUrl);
     setSoundDataUrl(null);
     setSoundName("");
     setSoundPath("");
 
-    // stop if playing
-    stopSound();
+    stopSound(); // web audio stop
+    try {
+      await invoke("stop_alarm"); // ✅ native stop
+    } catch {}
   };
 
   // keep isSoundPlaying state in sync
@@ -1214,9 +1226,9 @@ function TodoWrapper() {
                     <button
                       type="button"
                       className="btn ghost"
-                      onClick={playSoundNow}
-                      disabled={!soundDataUrl && !soundPath}
-                      title="Play"
+                      onClick={playAlarmNative}
+                      disabled={!soundPath}
+                      title="Play (Native)"
                     >
                       Play
                     </button>
@@ -1224,9 +1236,9 @@ function TodoWrapper() {
                     <button
                       type="button"
                       className="btn ghost"
-                      onClick={stopSound}
-                      disabled={!soundDataUrl && !soundPath}
-                      title="Stop"
+                      onClick={stopAlarmNative}
+                      disabled={!soundPath}
+                      title="Stop (Native)"
                     >
                       Stop
                     </button>
