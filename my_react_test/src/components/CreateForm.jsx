@@ -1,12 +1,13 @@
 import { useState } from "react";
 import MinuteSelect from "./MinuteSelect";
+import TagSelect from "./TagSelect";
 
 const TAG_OPTIONS = ["Study", "Exam", "Life", "Daily", "Other"];
 
 function CreateForm({ addTodo, isLocked }) {
   const [task, setTask] = useState("");
   const [minutes, setMinutes] = useState(25);
-  const [tag, setTag] = useState("Study"); // ✅ NEW
+  const [tag, setTag] = useState("Study");
 
   const isValid = task.trim().length > 0;
 
@@ -14,7 +15,7 @@ function CreateForm({ addTodo, isLocked }) {
     e.preventDefault();
     if (!isValid || isLocked) return;
 
-    addTodo(task.trim(), Number(minutes), tag); // ✅ pass tag
+    addTodo(task.trim(), Number(minutes), tag);
     setTask("");
   };
 
@@ -29,21 +30,13 @@ function CreateForm({ addTodo, isLocked }) {
         autoFocus
       />
 
-      {/* ✅ NEW: Tag select */}
-      <select
-        className="tag-select"
+      {/* ✅ Custom Tag Select */}
+      <TagSelect
         value={tag}
-        onChange={(e) => setTag(e.target.value)}
+        onChange={setTag}
+        options={TAG_OPTIONS}
         disabled={isLocked}
-        aria-label="Task tag"
-        title="Tag"
-      >
-        {TAG_OPTIONS.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
-        ))}
-      </select>
+      />
 
       <MinuteSelect
         value={minutes}
