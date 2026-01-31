@@ -2,14 +2,14 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::process::{Child, Command};
-use std::sync::Mutex;
-
+use tauri::{ActivationPolicy, Emitter, Manager};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-use tauri::{ActivationPolicy, Emitter, Manager, State};
-
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_nspopover::{AppExt as _, ToPopoverOptions, WindowExt as _};
+use std::process::{Child, Command};
+use std::sync::Mutex;
+use tauri::State;
+
 
 struct AlarmState(Mutex<Option<Child>>);
 
@@ -41,8 +41,6 @@ async fn pick_audio(app: tauri::AppHandle) -> Result<Option<String>, String> {
           {
             let _ = app_restore.set_activation_policy(ActivationPolicy::Accessory);
           }
-
-          // ✅ UI action on main thread
           app_restore.show_popover();
         });
 
@@ -94,6 +92,7 @@ fn stop_alarm(state: State<AlarmState>) -> Result<(), String> {
   Ok(())
 }
 
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -103,76 +102,48 @@ pub fn run() {
     .manage(AlarmState(Mutex::new(None)))
     .invoke_handler(tauri::generate_handler![pick_audio, play_alarm, stop_alarm])
     .setup(|app| {
-      eprintln!("✅ setup start");
-
       // ✅ macOS: menubar app (no Dock)
       #[cfg(target_os = "macos")]
       {
-        let _ = app.set_activation_policy(ActivationPolicy::Accessory);
+        app.set_activation_policy(ActivationPolicy::Accessory);
       }
 
-      // ✅ main window -> popover (不要 expect，避免朋友机器上直接 panic)
-      let window = match app.get_webview_window("main") {
-        Some(w) => w,
-        None => {
-          eprintln!("❌ missing window label=main (check tauri.conf.json windows label)");
-          return Ok(());
-        }
-      };
-
-      eprintln!("✅ got window");
+      // ✅ main window -> popover
+      let window = app
+        .get_webview_window("main")
+        .expect("missing window label=main");
 
       window.to_popover(ToPopoverOptions {
         is_fullsize_content: true,
       });
 
-      eprintln!("✅ converted to popover");
-
-      // ✅ 防止主視窗被 close 導致 App 直接退出：
-      //    把 close 變成 hide popover（UI 操作走 main thread）
-      let handle_for_close = app.handle().clone();
-      window.on_window_event(move |event| {
-        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-          api.prevent_close();
-
-          let h = handle_for_close.clone();     // 用來呼叫 run_on_main_thread
-          let h_ui = h.clone();                 // 給 closure 用（避免 move/borrow 衝突）
-
-          let _ = h.run_on_main_thread(move || {
-            if h_ui.is_popover_shown() {
-              h_ui.hide_popover();
-            }
-          });
-        }
-      });
-
-
       // tray (created by tauri.conf.json)
-      let tray = match app.tray_by_id("main") {
-        Some(t) => t,
-        None => {
-          eprintln!("❌ missing trayIcon id=main (check tauri.conf.json tray id)");
-          return Ok(());
-        }
-      };
-
-      eprintln!("✅ got tray");
+      let tray = app.tray_by_id("main").expect("missing trayIcon id=main");
 
       // ---------- Menu items ----------
       let version_str = format!("Version {}", env!("CARGO_PKG_VERSION"));
-      let version_item = MenuItem::with_id(app, "version", version_str, false, None::<&str>)?;
-      let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+      let version_item =
+        MenuItem::with_id(app, "version", version_str, false, None::<&str>)?;
+      let quit_item =
+        MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
       // Theme items (flat)
-      let theme_system = MenuItem::with_id(app, "theme_system", "Theme: System", true, None::<&str>)?;
-      let theme_light = MenuItem::with_id(app, "theme_light", "Theme: Light", true, None::<&str>)?;
-      let theme_dark = MenuItem::with_id(app, "theme_dark", "Theme: Dark", true, None::<&str>)?;
+      let theme_system =
+        MenuItem::with_id(app, "theme_system", "Theme: System", true, None::<&str>)?;
+      let theme_light =
+        MenuItem::with_id(app, "theme_light", "Theme: Light", true, None::<&str>)?;
+      let theme_dark =
+        MenuItem::with_id(app, "theme_dark", "Theme: Dark", true, None::<&str>)?;
 
       // Accent items (flat)
-      let accent_pink = MenuItem::with_id(app, "accent_pink", "Accent: Pink", true, None::<&str>)?;
-      let accent_purple = MenuItem::with_id(app, "accent_purple", "Accent: Purple", true, None::<&str>)?;
-      let accent_blue = MenuItem::with_id(app, "accent_blue", "Accent: Blue", true, None::<&str>)?;
-      let accent_gray = MenuItem::with_id(app, "accent_gray", "Accent: Gray", true, None::<&str>)?;
+      let accent_pink =
+        MenuItem::with_id(app, "accent_pink", "Accent: Pink", true, None::<&str>)?;
+      let accent_purple =
+        MenuItem::with_id(app, "accent_purple", "Accent: Purple", true, None::<&str>)?;
+      let accent_blue =
+        MenuItem::with_id(app, "accent_blue", "Accent: Blue", true, None::<&str>)?;
+      let accent_gray =
+        MenuItem::with_id(app, "accent_gray", "Accent: Gray", true, None::<&str>)?;
 
       // Build menu
       let menu = Menu::with_items(
@@ -180,14 +151,18 @@ pub fn run() {
         &[
           &version_item,
           &PredefinedMenuItem::separator(app)?,
+
           &theme_system,
           &theme_light,
           &theme_dark,
+
           &PredefinedMenuItem::separator(app)?,
+
           &accent_pink,
           &accent_purple,
           &accent_blue,
           &accent_gray,
+
           &PredefinedMenuItem::separator(app)?,
           &quit_item,
         ],
@@ -196,74 +171,41 @@ pub fn run() {
       tray.set_menu(Some(menu))?;
       tray.set_show_menu_on_left_click(false)?;
 
-      eprintln!("✅ menu built");
-
       // ---------- Menu events ----------
       let app_handle_for_menu = app.handle().clone();
-      tray.on_menu_event(move |_tray, event| match event.id().as_ref() {
-        "quit" => app_handle_for_menu.exit(0),
+      tray.on_menu_event(move |_tray, event| {
+        match event.id().as_ref() {
+          "quit" => app_handle_for_menu.exit(0),
 
-        "theme_system" => {
-          let _ = app_handle_for_menu.emit("settings://theme", "system");
-        }
-        "theme_light" => {
-          let _ = app_handle_for_menu.emit("settings://theme", "light");
-        }
-        "theme_dark" => {
-          let _ = app_handle_for_menu.emit("settings://theme", "dark");
-        }
+          "theme_system" => { let _ = app_handle_for_menu.emit("settings://theme", "system"); }
+          "theme_light"  => { let _ = app_handle_for_menu.emit("settings://theme", "light"); }
+          "theme_dark"   => { let _ = app_handle_for_menu.emit("settings://theme", "dark"); }
 
-        "accent_pink" => {
-          let _ = app_handle_for_menu.emit("settings://accent", "#d4a5c1");
-        }
-        "accent_purple" => {
-          let _ = app_handle_for_menu.emit("settings://accent", "#8e44ad");
-        }
-        "accent_blue" => {
-          let _ = app_handle_for_menu.emit("settings://accent", "#2d7ff9");
-        }
-        "accent_gray" => {
-          let _ = app_handle_for_menu.emit("settings://accent", "#4b4b4b");
-        }
+          "accent_pink"   => { let _ = app_handle_for_menu.emit("settings://accent", "#d4a5c1"); }
+          "accent_purple" => { let _ = app_handle_for_menu.emit("settings://accent", "#8e44ad"); }
+          "accent_blue"   => { let _ = app_handle_for_menu.emit("settings://accent", "#2d7ff9"); }
+          "accent_gray"   => { let _ = app_handle_for_menu.emit("settings://accent", "#4b4b4b"); }
 
-        _ => {}
+          _ => {}
+        }
       });
 
       // ---------- Left click toggles popover ----------
-      // ✅ show/hide popover 都放 main thread
       let handle = app.handle().clone();
       tray.on_tray_icon_event(move |_, event| {
         if let tauri::tray::TrayIconEvent::Click { button, button_state, .. } = event {
           if button == tauri::tray::MouseButton::Left
             && button_state == tauri::tray::MouseButtonState::Up
           {
-            let h = handle.clone();   // 用來呼叫 run_on_main_thread
-            let h_ui = h.clone();     // 給 closure 用
-
-            let _ = h.run_on_main_thread(move || {
-              if !h_ui.is_popover_shown() {
-                h_ui.show_popover();
-              } else {
-                h_ui.hide_popover();
-              }
-            });
+            if !handle.is_popover_shown() {
+              handle.show_popover();
+            } else {
+              handle.hide_popover();
+            }
           }
         }
       });
 
-
-      // ✅ 首次啟動：延遲一下再彈出 popover（避免使用者以為閃退）
-      // 关键：sleep 可以在后台做，但 show_popover 必须回 main thread
-      let h = app.handle().clone();
-      tauri::async_runtime::spawn_blocking(move || {
-        std::thread::sleep(std::time::Duration::from_millis(300));
-        let h2 = h.clone();
-        let _ = h.run_on_main_thread(move || {
-          let _ = h2.show_popover();
-        });
-      });
-
-      eprintln!("✅ setup done");
       Ok(())
     })
     .run(tauri::generate_context!())
