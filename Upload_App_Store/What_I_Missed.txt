@@ -1,0 +1,29 @@
+App Icon 1024×1024（App Store 用）
+
+截图（macOS 3–5 张）
+
+| 项目                           | 什么时候必须      |
+| ------------------------------| --------------- |
+| .icns`（app 内 icon）          | build 前         |
+| 1024×1024 App Store icon      | **提交审核前**    |
+| macOS 截图                     | **提交审核前**    |
+| 文案                           | 提交审核前        |
+
+
+| Screenshot  | 文案示例                                   |
+| ----------- | -------------------------------------- |
+| home_page   | *Your tasks, always one click away*    |
+| Add_Tasks   | *Add tasks instantly from the menubar* |
+| Alarm_Music | *Focus with gentle alarm cues*         |
+| customize   | *Customize your focus workflow*        |
+| Dark_Mode   | *Designed for macOS, light and dark*   |
+
+| 项目            | 状态           |
+| -------------  | ----------    |
+| Bundle ID      | ✅ 完成        |
+| Sandbox        | ✅ 最小权限     |
+| App 描述        | ✅            |
+| 隐私声明         | ✅            |
+| 权限说明         | ✅            |
+| Screenshots    | ✅             |
+| App Icon 1024  | ⛔ **唯一还缺** |

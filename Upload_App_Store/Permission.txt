@@ -1,0 +1,12 @@
+📂 File Access
+
+Not used
+
+YC Todo does not access user files or folders.
+All task data is stored internally within the app’s sandbox.
+
+🌐 Network Access
+
+Not used
+
+YC Todo does not connect to the internet and does not transmit any data externally.

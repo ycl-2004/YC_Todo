@@ -1,0 +1,19 @@
+YC Todo
+
+YC Todo is a lightweight macOS menubar task and focus app designed for fast, distraction-free productivity.
+
+The app lives entirely in the macOS menubar, allowing you to quickly create tasks, assign focus durations, and track progress without opening a full window or leaving your current workflow.
+
+YC Todo is built for simplicity and speed:
+
+Create and manage tasks directly from the menubar
+
+Assign focus durations to each task
+
+Track progress with a clean, minimal interface
+
+Keep your workflow uncluttered and distraction-free
+
+All data is stored locally on your device. YC Todo does not require an account, does not connect to external servers, and works fully offline.
+
+Designed for macOS users who value focus, clarity, and a clean desktop experience.

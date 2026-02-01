@@ -1,7 +1,7 @@
 {
   "name": "my_react_test",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port 5173 --strictPort",

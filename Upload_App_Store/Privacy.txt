@@ -1,0 +1,7 @@
+YC Todo does not collect, store, or transmit any personal data.
+
+All tasks and settings are stored locally on the user’s device.
+The app does not use analytics, advertising, or third-party tracking.
+No data is shared with external servers.
+
+YC Todo works entirely offline.
