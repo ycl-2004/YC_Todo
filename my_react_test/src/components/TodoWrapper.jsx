@@ -1046,7 +1046,18 @@ function TodoWrapper() {
 
         console.log("[ui://toggle-sound] received", e);
 
-        setShowSoundPanel((v) => !v); // ✅ 真正 toggle
+        // setShowSoundPanel((v) => !v); // ✅ 真正 toggle (原本)
+        setShowSoundPanel((v) => {
+          const next = !v;
+
+          // ✅ 如果这次是“关面板”，就一起 stop web + native
+          if (!next) {
+            stopSound(); // 停 web audio
+            stopAlarmNative(); // 停 native afplay（不 await 也没关系）
+          }
+
+          return next;
+        });
       });
 
       if (disposed) {
