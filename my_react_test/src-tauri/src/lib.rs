@@ -96,15 +96,12 @@ fn stop_alarm(state: State<AlarmState>) -> Result<(), String> {
 
 #[tauri::command]
 fn hide_popover_cmd(app: tauri::AppHandle) -> Result<(), String> {
-  // 关键：给 closure 用一个 clone，避免 borrow/move 冲突
   let app_ui = app.clone();
-
   let _ = app.run_on_main_thread(move || {
     if app_ui.is_popover_shown() {
       app_ui.hide_popover();
     }
   });
-
   Ok(())
 }
 
@@ -115,7 +112,12 @@ pub fn run() {
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_nspopover::init())
     .manage(AlarmState(Mutex::new(None)))
-    .invoke_handler(tauri::generate_handler![pick_audio, play_alarm, stop_alarm, hide_popover_cmd])
+    .invoke_handler(tauri::generate_handler![
+      pick_audio,
+      play_alarm,
+      stop_alarm,
+      hide_popover_cmd
+    ])
     .setup(|app| {
       eprintln!("✅ setup start");
 
@@ -125,7 +127,7 @@ pub fn run() {
         let _ = app.set_activation_policy(ActivationPolicy::Accessory);
       }
 
-      // ✅ main window -> popover (不要 expect，避免朋友机器上直接 panic)
+      // ✅ main window -> popover
       let window = match app.get_webview_window("main") {
         Some(w) => w,
         None => {
@@ -142,15 +144,14 @@ pub fn run() {
 
       eprintln!("✅ converted to popover");
 
-      // ✅ 防止主視窗被 close 導致 App 直接退出：
-      //    把 close 變成 hide popover（UI 操作走 main thread）
+      // ✅ 防止主視窗被 close 導致 App 直接退出：close => hide popover
       let handle_for_close = app.handle().clone();
       window.on_window_event(move |event| {
         if let tauri::WindowEvent::CloseRequested { api, .. } = event {
           api.prevent_close();
 
-          let h = handle_for_close.clone();     // 用來呼叫 run_on_main_thread
-          let h_ui = h.clone();                 // 給 closure 用（避免 move/borrow 衝突）
+          let h = handle_for_close.clone();
+          let h_ui = h.clone();
 
           let _ = h.run_on_main_thread(move || {
             if h_ui.is_popover_shown() {
@@ -159,7 +160,6 @@ pub fn run() {
           });
         }
       });
-
 
       // tray (created by tauri.conf.json)
       let tray = match app.tray_by_id("main") {
@@ -174,19 +174,27 @@ pub fn run() {
 
       // ---------- Menu items ----------
       let version_str = format!("Version {}", env!("CARGO_PKG_VERSION"));
-      let version_item = MenuItem::with_id(app, "version", version_str, false, None::<&str>)?;
+      let version_item =
+        MenuItem::with_id(app, "version", version_str, false, None::<&str>)?;
       let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
       // Theme items (flat)
-      let theme_system = MenuItem::with_id(app, "theme_system", "Theme: System", true, None::<&str>)?;
-      let theme_light = MenuItem::with_id(app, "theme_light", "Theme: Light", true, None::<&str>)?;
-      let theme_dark = MenuItem::with_id(app, "theme_dark", "Theme: Dark", true, None::<&str>)?;
+      let theme_system =
+        MenuItem::with_id(app, "theme_system", "Theme: System", true, None::<&str>)?;
+      let theme_light =
+        MenuItem::with_id(app, "theme_light", "Theme: Light", true, None::<&str>)?;
+      let theme_dark =
+        MenuItem::with_id(app, "theme_dark", "Theme: Dark", true, None::<&str>)?;
 
       // Accent items (flat)
-      let accent_pink = MenuItem::with_id(app, "accent_pink", "Accent: Pink", true, None::<&str>)?;
-      let accent_purple = MenuItem::with_id(app, "accent_purple", "Accent: Purple", true, None::<&str>)?;
-      let accent_blue = MenuItem::with_id(app, "accent_blue", "Accent: Blue", true, None::<&str>)?;
-      let accent_gray = MenuItem::with_id(app, "accent_gray", "Accent: Gray", true, None::<&str>)?;
+      let accent_pink =
+        MenuItem::with_id(app, "accent_pink", "Accent: Pink", true, None::<&str>)?;
+      let accent_purple =
+        MenuItem::with_id(app, "accent_purple", "Accent: Purple", true, None::<&str>)?;
+      let accent_blue =
+        MenuItem::with_id(app, "accent_blue", "Accent: Blue", true, None::<&str>)?;
+      let accent_gray =
+        MenuItem::with_id(app, "accent_gray", "Accent: Gray", true, None::<&str>)?;
 
       // Build menu
       let menu = Menu::with_items(
@@ -244,15 +252,19 @@ pub fn run() {
       });
 
       // ---------- Left click toggles popover ----------
-      // ✅ show/hide popover 都放 main thread
       let handle = app.handle().clone();
       tray.on_tray_icon_event(move |_, event| {
-        if let tauri::tray::TrayIconEvent::Click { button, button_state, .. } = event {
+        if let tauri::tray::TrayIconEvent::Click {
+          button,
+          button_state,
+          ..
+        } = event
+        {
           if button == tauri::tray::MouseButton::Left
             && button_state == tauri::tray::MouseButtonState::Up
           {
-            let h = handle.clone();   // 用來呼叫 run_on_main_thread
-            let h_ui = h.clone();     // 給 closure 用
+            let h = handle.clone();
+            let h_ui = h.clone();
 
             let _ = h.run_on_main_thread(move || {
               if !h_ui.is_popover_shown() {
@@ -265,10 +277,52 @@ pub fn run() {
         }
       });
 
+      // ---------- Global Shortcut (macOS) ----------
+      // ✅ 用快捷键在后台也能 toggle popover
+      // 默认：⌘ + Shift + Y
+      #[cfg(target_os = "macos")]
+      {
+        use tauri_plugin_global_shortcut::{
+          Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
+        };
+
+        let toggle_shortcut =
+          Shortcut::new(Some(Modifiers::META | Modifiers::SHIFT), Code::KeyJ);
+
+
+        let shortcut_for_handler = toggle_shortcut.clone();
+        let app_handle = app.handle().clone();
+
+        // 在 setup 里安装插件 + handler（你这个项目结构这样写最贴近现有逻辑）
+        app_handle.plugin(
+          tauri_plugin_global_shortcut::Builder::new()
+            .with_handler(move |app, shortcut, event| {
+              if shortcut == &shortcut_for_handler
+                && event.state() == ShortcutState::Pressed
+              {
+                let h = app.app_handle().clone();
+                let h_ui = h.clone();
+
+                let _ = h.run_on_main_thread(move || {
+                  if !h_ui.is_popover_shown() {
+                    h_ui.show_popover();
+                  } else {
+                    h_ui.hide_popover();
+                  }
+                });
+              }
+            })
+            .build(),
+        )?;
+
+        // 注册快捷键
+        app_handle.global_shortcut().register(toggle_shortcut)?;
+      }
 
       // ✅ 首次啟動：延遲一下再彈出 popover（避免使用者以為閃退）
-      // 关键：sleep 可以在后台做，但 show_popover 必须回 main thread
-      let h = app.handle().clone();
+      let h = app.app_handle().clone();
+      let h_ui = h.clone();
+
       tauri::async_runtime::spawn_blocking(move || {
         std::thread::sleep(std::time::Duration::from_millis(300));
         let h2 = h.clone();

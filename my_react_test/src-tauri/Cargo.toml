@@ -25,6 +25,8 @@ tauri-plugin-log = "2"
 tauri-plugin-positioner = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+tauri-plugin-global-shortcut = "2"
+
 
 
 # ✅ 只留这一条
