@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import MinuteSelect from "./MinuteSelect";
 import TagSelect from "./TagSelect";
 
 function CreateForm({ addTodo, isLocked, tags }) {
+  const formRef = useRef(null); // ✅ NEW
+
   const [task, setTask] = useState("");
   const [minutes, setMinutes] = useState(25);
   const [tag, setTag] = useState(tags?.[0] ?? "Study");
@@ -18,13 +20,12 @@ function CreateForm({ addTodo, isLocked, tags }) {
   };
 
   useEffect(() => {
-    // 如果目前選到的 tag 被刪掉了，就回到第一個 tag
     if (!tags?.length) return;
     if (!tags.includes(tag)) setTag(tags[0]);
   }, [tags, tag]);
 
   return (
-    <form className="create-form" onSubmit={handleSubmit}>
+    <form ref={formRef} className="create-form" onSubmit={handleSubmit}>
       <input
         type="text"
         placeholder="Add a task…"
@@ -46,6 +47,10 @@ function CreateForm({ addTodo, isLocked, tags }) {
         onChange={setMinutes}
         disabled={isLocked}
         ariaLabel="Task minutes"
+        onDone={() => {
+          // ✅ press Enter in time popover => submit add task
+          formRef.current?.requestSubmit?.();
+        }}
       />
 
       <button

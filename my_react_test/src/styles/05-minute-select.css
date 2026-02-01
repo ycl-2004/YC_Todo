@@ -100,12 +100,14 @@
   margin-top: -5px;
 }
 .minute-slider-value {
-  width: 44px;
+  width: 45px;
   text-align: right;
   font-size: 11px;
   font-weight: 900;
   color: var(--ink);
   opacity: 0.85;
+  flex: 0 0 auto;
+  display: inline-flex;
 } /* ------------------------------ Wheel picker ------------------------------ */
 .minute-wheel-pad {
   height: 36px; /* ITEM_H */

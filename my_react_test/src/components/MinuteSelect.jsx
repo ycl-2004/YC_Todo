@@ -3,50 +3,76 @@ import { createPortal } from "react-dom";
 
 const QUICK_PRESETS = [25, 45, 60, 90];
 
+// Total minutes settings (value is STILL total minutes)
+const MIN_TOTAL = 1;
+const MAX_TOTAL = 180;
+
 // Wheel settings
-const MIN_MINUTES = 1;
-const MAX_MINUTES = 180;
 const ITEM_H = 36;
 const WHEEL_VISIBLE = 5; // keep odd
 const CENTER_ROW = Math.floor(WHEEL_VISIBLE / 2); // 2
-
-function buildMinuteOptions() {
-  return Array.from(
-    { length: MAX_MINUTES - MIN_MINUTES + 1 },
-    (_, i) => MIN_MINUTES + i,
-  );
-}
+const WHEEL_PAD = CENTER_ROW * ITEM_H; // 72px top/bottom pad to make 58/59 easier
 
 function clamp(n, a, b) {
   return Math.max(a, Math.min(n, b));
 }
 
+function buildRange(min, max) {
+  return Array.from({ length: max - min + 1 }, (_, i) => min + i);
+}
+
+function splitTotalMinutes(total) {
+  const t = clamp(Number(total) || 0, MIN_TOTAL, MAX_TOTAL);
+  const h = Math.floor(t / 60);
+  const m = t % 60;
+  return { h, m };
+}
+
+function formatBtnLabel(total) {
+  const { h, m } = splitTotalMinutes(total);
+  if (h <= 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
 export default function MinuteSelect({
-  value,
+  value, // total minutes
   onChange,
   disabled,
   ariaLabel = "Minutes",
+
+  // positioning
+  anchorRef, // optional external anchor
+  placement = "anchor", // "anchor" | "edit"
+
+  // refs + callbacks
+  buttonRef, // optional ref passed from parent
+  onDone, // ✅ Enter while open => close + notify parent
 }) {
-  const options = useMemo(() => buildMinuteOptions(), []);
+  const MAX_HOURS = Math.floor(MAX_TOTAL / 60);
+  const hoursOptions = useMemo(() => buildRange(0, MAX_HOURS), [MAX_HOURS]);
+  const minutesOptions = useMemo(() => buildRange(0, 59), []);
+
   const [open, setOpen] = useState(false);
 
   const rootRef = useRef(null);
-  const wheelRef = useRef(null);
+  const hourWheelRef = useRef(null);
+  const minWheelRef = useRef(null);
 
   const programmaticRef = useRef(false);
   const rafRef = useRef(0);
-  const lastIdxRef = useRef(-1);
 
   const [pos, setPos] = useState({ top: 0, left: 0, width: 180 });
 
-  // ✅ highlight 位置：默认在中间；到边界时跟着 item 走
-  const [highlightTop, setHighlightTop] = useState(CENTER_ROW * ITEM_H);
+  const [hourHighlightTop, setHourHighlightTop] = useState(CENTER_ROW * ITEM_H);
+  const [minHighlightTop, setMinHighlightTop] = useState(CENTER_ROW * ITEM_H);
+
+  const getAnchorEl = () => {
+    const fallbackBtn = rootRef.current?.querySelector(".minute-btn");
+    return anchorRef?.current || buttonRef?.current || fallbackBtn;
+  };
 
   const updatePosition = () => {
-    const btn = rootRef.current?.querySelector(".minute-btn");
-    if (!btn) return;
-
-    const r = btn.getBoundingClientRect();
     const popW = 180;
     const popH = 290;
     const gap = 6;
@@ -54,6 +80,26 @@ export default function MinuteSelect({
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
+    const el = getAnchorEl();
+    if (!el) return;
+
+    const r = el.getBoundingClientRect();
+
+    // ✅ placement="edit": show under the time button (and clamp)
+    if (placement === "edit") {
+      const gap2 = 10;
+
+      let top = Math.round(r.bottom + gap2);
+      let left = Math.round(r.left + r.width / 2 - popW / 2);
+
+      left = Math.max(8, Math.min(left, vw - popW - 8));
+      top = Math.max(8, Math.min(top, vh - popH - 8));
+
+      setPos({ top, left, width: popW });
+      return;
+    }
+
+    // ✅ default dropdown behavior (anchor)
     const openUp = vh - r.bottom < popH + gap;
 
     let top = openUp ? r.top - gap - popH : r.bottom + gap;
@@ -77,43 +123,96 @@ export default function MinuteSelect({
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  // ✅ wheel scroll speed boost (mouse/trackpad)
+  // ✅ KEYBOARD (works even when focus is inside the portal)
   useEffect(() => {
-    if (!open) return;
-    const wheel = wheelRef.current;
-    if (!wheel) return;
+    if (!open || disabled) return;
 
-    const SPEED = 2.4; // 2.0~3.5 之间自己调，越大越快
+    const onKey = (e) => {
+      if (e.isComposing) return;
 
-    const onWheel = (e) => {
-      // 如果用户正在 pinch-zoom 或系统手势，别碰
-      if (e.ctrlKey) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(false);
+        return;
+      }
 
-      // ✅ 我们自己滚更远一点
-      e.preventDefault();
-      wheel.scrollTop += e.deltaY * SPEED;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(false);
+        onDone?.();
+        return;
+      }
+
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const next = clamp(
+          Number(value) + (e.key === "ArrowDown" ? 1 : -1),
+          MIN_TOTAL,
+          MAX_TOTAL,
+        );
+
+        onChange(next);
+
+        const { h, m } = splitTotalMinutes(next);
+        scrollToIdx(hourWheelRef.current, h, "smooth");
+        scrollToIdx(minWheelRef.current, m, "smooth");
+      }
     };
 
-    wheel.addEventListener("wheel", onWheel, { passive: false });
-    return () => wheel.removeEventListener("wheel", onWheel);
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [open, disabled, value, onChange, onDone]);
+
+  // wheel scroll speed boost
+  useEffect(() => {
+    if (!open) return;
+
+    const SPEED = 2.4;
+
+    const bindWheel = (el) => {
+      if (!el) return () => {};
+      const onWheel = (e) => {
+        if (e.ctrlKey) return;
+        e.preventDefault();
+        el.scrollTop += e.deltaY * SPEED;
+      };
+      el.addEventListener("wheel", onWheel, { passive: false });
+      return () => el.removeEventListener("wheel", onWheel);
+    };
+
+    const offH = bindWheel(hourWheelRef.current);
+    const offM = bindWheel(minWheelRef.current);
+
+    return () => {
+      offH();
+      offM();
+    };
   }, [open]);
 
-  // ✅ 核心：把 idx 对齐到中心行（但到边界要 clamp，避免出现 gap）
-  const scrollToIdx = (idx, behavior = "auto") => {
-    const wheel = wheelRef.current;
+  const maxScrollTop = (wheel) => {
+    if (!wheel) return 0;
+    return wheel.scrollHeight - wheel.clientHeight;
+  };
+
+  const idxFromScrollTop = (optionsLen, scrollTop) => {
+    const idx = Math.round(
+      (scrollTop - WHEEL_PAD + CENTER_ROW * ITEM_H) / ITEM_H,
+    );
+    return clamp(idx, 0, optionsLen - 1);
+  };
+
+  const scrollToIdx = (wheel, idx, behavior = "auto") => {
     if (!wheel) return;
 
-    const maxScroll = wheel.scrollHeight - wheel.clientHeight;
-
-    // 理想：让 idx 落在中心行
-    const ideal = idx * ITEM_H - CENTER_ROW * ITEM_H;
-
-    // clamp：顶到底不留空
+    const maxScroll = maxScrollTop(wheel);
+    const ideal = WHEEL_PAD + idx * ITEM_H - CENTER_ROW * ITEM_H;
     const top = clamp(ideal, 0, Math.max(0, maxScroll));
 
     programmaticRef.current = true;
-    lastIdxRef.current = idx;
-
     wheel.scrollTo({ top, behavior });
 
     window.setTimeout(
@@ -124,42 +223,41 @@ export default function MinuteSelect({
     );
   };
 
-  const centerToMinute = (m, behavior = "auto") => {
-    const idx = clamp(Number(m) - MIN_MINUTES, 0, options.length - 1);
-    scrollToIdx(idx, behavior);
-  };
-
-  // ✅ 根据 wheel.scrollTop 计算 idx（中心行取整）
-  const idxFromScrollTop = (scrollTop) => {
-    const idx = Math.round((scrollTop + CENTER_ROW * ITEM_H) / ITEM_H);
-    return clamp(idx, 0, options.length - 1);
-  };
-
-  // ✅ highlight：中间固定；但到边界时跟着 item 走（不出现空白感）
-  const updateHighlight = () => {
-    const wheel = wheelRef.current;
+  const updateHighlight = (wheel, optionsLen, setHighlightTop) => {
     if (!wheel) return;
 
-    const idx = idxFromScrollTop(wheel.scrollTop);
-    const itemCenterY = idx * ITEM_H - wheel.scrollTop; // item 顶部相对 wheel
-    // 我们要 highlightTop 是 item 的 top（让框贴着 item）
-    // 但正常情况保持在中间
-    const maxScroll = wheel.scrollHeight - wheel.clientHeight;
-    const ideal = idx * ITEM_H - CENTER_ROW * ITEM_H;
+    const idx = idxFromScrollTop(optionsLen, wheel.scrollTop);
+    const itemTop = WHEEL_PAD + idx * ITEM_H - wheel.scrollTop;
 
+    const maxScroll = maxScrollTop(wheel);
+    const ideal = WHEEL_PAD + idx * ITEM_H - CENTER_ROW * ITEM_H;
     const clamped = clamp(ideal, 0, Math.max(0, maxScroll));
     const isEdge = clamped !== ideal;
 
-    if (isEdge) {
-      // 贴着真实 item（边界）
-      setHighlightTop(itemCenterY);
-    } else {
-      // 永远中间
-      setHighlightTop(CENTER_ROW * ITEM_H);
-    }
+    setHighlightTop(isEdge ? itemTop : WHEEL_PAD + CENTER_ROW * ITEM_H);
   };
 
-  // open: position + center
+  const setByHM = (h, m, behavior = "auto") => {
+    const total = clamp(h * 60 + m, MIN_TOTAL, MAX_TOTAL);
+    onChange(total);
+
+    const { h: hh, m: mm } = splitTotalMinutes(total);
+    scrollToIdx(hourWheelRef.current, hh, behavior);
+    scrollToIdx(minWheelRef.current, mm, behavior);
+
+    updateHighlight(
+      hourWheelRef.current,
+      hoursOptions.length,
+      setHourHighlightTop,
+    );
+    updateHighlight(
+      minWheelRef.current,
+      minutesOptions.length,
+      setMinHighlightTop,
+    );
+  };
+
+  // open: position + center wheels
   useEffect(() => {
     if (!open) return;
 
@@ -167,47 +265,65 @@ export default function MinuteSelect({
     window.addEventListener("resize", updatePosition);
 
     requestAnimationFrame(() => {
-      centerToMinute(Number(value), "auto");
-      updateHighlight();
+      const { h, m } = splitTotalMinutes(value);
+      scrollToIdx(hourWheelRef.current, h, "auto");
+      scrollToIdx(minWheelRef.current, m, "auto");
+
+      updateHighlight(
+        hourWheelRef.current,
+        hoursOptions.length,
+        setHourHighlightTop,
+      );
+      updateHighlight(
+        minWheelRef.current,
+        minutesOptions.length,
+        setMinHighlightTop,
+      );
     });
 
     return () => window.removeEventListener("resize", updatePosition);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // value change: keep wheel synced (slider/quick)
+  // value change: sync wheels
   useEffect(() => {
     if (!open) return;
     requestAnimationFrame(() => {
-      centerToMinute(Number(value), "auto");
-      updateHighlight();
+      const { h, m } = splitTotalMinutes(value);
+      scrollToIdx(hourWheelRef.current, h, "auto");
+      scrollToIdx(minWheelRef.current, m, "auto");
+
+      updateHighlight(
+        hourWheelRef.current,
+        hoursOptions.length,
+        setHourHighlightTop,
+      );
+      updateHighlight(
+        minWheelRef.current,
+        minutesOptions.length,
+        setMinHighlightTop,
+      );
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, open]);
 
-  // scroll -> live select
+  // scroll -> live select (hours)
   useEffect(() => {
     if (!open) return;
-    const wheel = wheelRef.current;
+    const wheel = hourWheelRef.current;
     if (!wheel) return;
 
     const onScroll = () => {
-      if (programmaticRef.current) {
-        updateHighlight();
-        return;
-      }
-
       cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
-        const idx = idxFromScrollTop(wheel.scrollTop);
+        updateHighlight(wheel, hoursOptions.length, setHourHighlightTop);
+        if (programmaticRef.current) return;
 
-        updateHighlight();
+        const hIdx = idxFromScrollTop(hoursOptions.length, wheel.scrollTop);
+        const h = hoursOptions[hIdx];
 
-        if (idx === lastIdxRef.current) return;
-        lastIdxRef.current = idx;
-
-        const next = options[idx];
-        if (next !== Number(value)) onChange(next);
+        const { m } = splitTotalMinutes(value);
+        setByHM(h, m, "auto");
       });
     };
 
@@ -216,31 +332,45 @@ export default function MinuteSelect({
       cancelAnimationFrame(rafRef.current);
       wheel.removeEventListener("scroll", onScroll);
     };
-  }, [open, options, onChange, value]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, hoursOptions, value]);
 
-  const handleKeyDown = (e) => {
+  // scroll -> live select (minutes)
+  useEffect(() => {
+    if (!open) return;
+    const wheel = minWheelRef.current;
+    if (!wheel) return;
+
+    const onScroll = () => {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        updateHighlight(wheel, minutesOptions.length, setMinHighlightTop);
+        if (programmaticRef.current) return;
+
+        const mIdx = idxFromScrollTop(minutesOptions.length, wheel.scrollTop);
+        const m = minutesOptions[mIdx];
+
+        const { h } = splitTotalMinutes(value);
+        setByHM(h, m, "auto");
+      });
+    };
+
+    wheel.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      wheel.removeEventListener("scroll", onScroll);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, minutesOptions, value]);
+
+  // Only for: closed state -> Enter/Space opens (optional)
+  const handleClosedKeyDown = (e) => {
     if (disabled) return;
+    if (open) return;
 
-    if (!open && (e.key === "Enter" || e.key === " ")) {
+    if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       setOpen(true);
-      return;
-    }
-    if (open && e.key === "Escape") {
-      e.preventDefault();
-      setOpen(false);
-      return;
-    }
-
-    if (open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
-      e.preventDefault();
-      const next = clamp(
-        Number(value) + (e.key === "ArrowDown" ? 1 : -1),
-        MIN_MINUTES,
-        MAX_MINUTES,
-      );
-      onChange(next);
-      centerToMinute(next, "smooth");
     }
   };
 
@@ -265,7 +395,9 @@ export default function MinuteSelect({
             className={`minute-quick ${Number(value) === m ? "active" : ""}`}
             onClick={() => {
               onChange(m);
-              centerToMinute(m, "smooth");
+              const { h, m: mm } = splitTotalMinutes(m);
+              scrollToIdx(hourWheelRef.current, h, "smooth");
+              scrollToIdx(minWheelRef.current, mm, "smooth");
             }}
           >
             {m}m
@@ -279,39 +411,91 @@ export default function MinuteSelect({
         <input
           className="minute-slider"
           type="range"
-          min={MIN_MINUTES}
-          max={MAX_MINUTES}
+          min={MIN_TOTAL}
+          max={MAX_TOTAL}
           value={Number(value)}
           onChange={(e) => {
             const v = Number(e.target.value);
             onChange(v);
-            centerToMinute(v, "auto");
+
+            const { h, m } = splitTotalMinutes(v);
+            scrollToIdx(hourWheelRef.current, h, "auto");
+            scrollToIdx(minWheelRef.current, m, "auto");
           }}
         />
-        <div className="minute-slider-value">{value}m</div>
+        <div className="minute-slider-value">{formatBtnLabel(value)}</div>
       </div>
 
-      <div className="minute-wheel" ref={wheelRef} aria-label="Minute picker">
-        {options.map((m) => (
-          <button
-            key={m}
-            type="button"
-            className={`minute-wheel-item ${Number(value) === m ? "active" : ""}`}
-            onClick={() => {
-              onChange(m);
-              centerToMinute(m, "smooth");
-            }}
-          >
-            {m}m
-          </button>
-        ))}
-
-        {/* ✅ highlight：平常在中间；到边界跟着 item 走 */}
+      <div style={{ display: "flex", gap: 8 }}>
+        {/* Hours wheel */}
         <div
-          className="minute-wheel-highlight"
-          style={{ top: `${highlightTop}px` }}
-          aria-hidden="true"
-        />
+          className="minute-wheel"
+          ref={hourWheelRef}
+          aria-label="Hour picker"
+          style={{
+            width: "50%",
+            paddingTop: WHEEL_PAD,
+            paddingBottom: WHEEL_PAD,
+          }}
+        >
+          {hoursOptions.map((h) => {
+            const activeH = splitTotalMinutes(value).h;
+            return (
+              <button
+                key={h}
+                type="button"
+                className={`minute-wheel-item ${activeH === h ? "active" : ""}`}
+                onClick={() => {
+                  const { m } = splitTotalMinutes(value);
+                  setByHM(h, m, "smooth");
+                }}
+              >
+                {h}h
+              </button>
+            );
+          })}
+
+          <div
+            className="minute-wheel-highlight"
+            style={{ top: `${hourHighlightTop}px` }}
+            aria-hidden="true"
+          />
+        </div>
+
+        {/* Minutes wheel */}
+        <div
+          className="minute-wheel"
+          ref={minWheelRef}
+          aria-label="Minute picker"
+          style={{
+            width: "50%",
+            paddingTop: WHEEL_PAD,
+            paddingBottom: WHEEL_PAD,
+          }}
+        >
+          {minutesOptions.map((m) => {
+            const activeM = splitTotalMinutes(value).m;
+            return (
+              <button
+                key={m}
+                type="button"
+                className={`minute-wheel-item ${activeM === m ? "active" : ""}`}
+                onClick={() => {
+                  const { h } = splitTotalMinutes(value);
+                  setByHM(h, m, "smooth");
+                }}
+              >
+                {m}m
+              </button>
+            );
+          })}
+
+          <div
+            className="minute-wheel-highlight"
+            style={{ top: `${minHighlightTop}px` }}
+            aria-hidden="true"
+          />
+        </div>
       </div>
     </div>
   );
@@ -320,9 +504,10 @@ export default function MinuteSelect({
     <div
       ref={rootRef}
       className={`minute-select ${disabled ? "is-disabled" : ""}`}
-      onKeyDown={handleKeyDown}
+      onKeyDown={handleClosedKeyDown}
     >
       <button
+        ref={buttonRef}
         type="button"
         className="minute-btn"
         aria-label={ariaLabel}
@@ -331,7 +516,7 @@ export default function MinuteSelect({
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
       >
-        <span>{value}m</span>
+        <span>{formatBtnLabel(value)}</span>
         <span className="chev">▾</span>
       </button>
 

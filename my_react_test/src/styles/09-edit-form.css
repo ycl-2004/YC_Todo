@@ -35,6 +35,7 @@
   padding: 0 8px;
   font-size: 11px;
   border-radius: 12px;
+  position: relative;
 }
 
 .edit-form.edit-inline .btn {
@@ -43,4 +44,19 @@
   border-radius: 12px;
   font-size: 12px;
   white-space: nowrap;
+}
+
+/* 文字那一段撑满并居中 */
+.edit-form.edit-inline .minute-btn > span:first-child {
+  flex: 1 1 auto;
+  text-align: center;
+  display: block;
+}
+
+/* ▾ 固定在右边，不再挤歪文字 */
+.edit-form.edit-inline .minute-btn .chev {
+  position: absolute;
+  right: 10px; /* 想更靠右：12/14 */
+  top: 50%;
+  transform: translateY(-50%);
 }

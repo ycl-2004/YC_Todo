@@ -1,11 +1,16 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import MinuteSelect from "./MinuteSelect";
+
+const formRef = useRef(null);
 
 function EditForm({ todo, editTodo, toggleIsEditing, isLocked }) {
   const [task, setTask] = useState(todo.content);
   const [minutes, setMinutes] = useState(Number(todo.minutes ?? 25));
 
   const isValid = task.trim().length > 0;
+
+  // ✅ ref to the REAL time button in edit mode
+  const timeBtnRef = useRef(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -14,7 +19,11 @@ function EditForm({ todo, editTodo, toggleIsEditing, isLocked }) {
   };
 
   return (
-    <form className="edit-form edit-inline" onSubmit={handleSubmit}>
+    <form
+      ref={formRef}
+      className="edit-form edit-inline"
+      onSubmit={handleSubmit}
+    >
       <input
         type="text"
         placeholder="Edit task…"
@@ -29,6 +38,13 @@ function EditForm({ todo, editTodo, toggleIsEditing, isLocked }) {
         onChange={setMinutes}
         disabled={isLocked}
         ariaLabel="Edit minutes"
+        placement="edit"
+        buttonRef={timeBtnRef} // ✅ MUST
+        anchorRef={timeBtnRef} // ✅ optional but helps fallback
+        onDone={() => {
+          // ✅ press Enter in popover => Save form
+          formRef.current?.requestSubmit?.();
+        }}
       />
 
       <button
