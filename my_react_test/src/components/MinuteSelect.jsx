@@ -5,7 +5,7 @@ const QUICK_PRESETS = [25, 45, 60, 90];
 
 // Total minutes settings (value is STILL total minutes)
 const MIN_TOTAL = 1;
-const MAX_TOTAL = 180;
+const MAX_TOTAL = 480;
 
 // Wheel settings
 const ITEM_H = 36;
