@@ -49,12 +49,12 @@ function TodoWrapper() {
 
   const [accent, setAccent] = useState(() => {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    return raw ? (safeParse(raw, null)?.accent ?? "#d4a5c1") : "#d4a5c1";
+    return raw ? safeParse(raw, null)?.accent ?? "#d4a5c1" : "#d4a5c1";
   });
 
   const [themeMode, setThemeMode] = useState(() => {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    return raw ? (safeParse(raw, null)?.themeMode ?? "system") : "system"; // "light" | "dark" | "system"
+    return raw ? safeParse(raw, null)?.themeMode ?? "system" : "system"; // "light" | "dark" | "system"
   });
 
   const [title, setTitle] = useState(() => {
@@ -76,7 +76,15 @@ function TodoWrapper() {
     // fallback seed
     return [
       {
-        content: "學習1",
+        content: "Welcome to YC Todo",
+        id: Math.random(),
+        isCompleted: false,
+        isEditing: false,
+        minutes: 60,
+        tag: "Life",
+      },
+      {
+        content: "Add your first task",
         id: Math.random(),
         isCompleted: false,
         isEditing: false,
@@ -84,20 +92,12 @@ function TodoWrapper() {
         tag: "Study",
       },
       {
-        content: "學習2",
+        content: "Edit your task",
         id: Math.random(),
         isCompleted: false,
         isEditing: false,
         minutes: 25,
-        tag: "Study",
-      },
-      {
-        content: "學習3",
-        id: Math.random(),
-        isCompleted: false,
-        isEditing: false,
-        minutes: 25,
-        tag: "Study",
+        tag: "Exam",
       },
     ];
   });
@@ -219,17 +219,17 @@ function TodoWrapper() {
   // -----------------------------
   const normalizedTodos = useMemo(
     () => todos.map((t) => ({ ...t, tag: t.tag ?? "Study" })),
-    [todos],
+    [todos]
   );
 
   const allIncomplete = useMemo(
     () => normalizedTodos.filter((t) => !t.isCompleted),
-    [normalizedTodos],
+    [normalizedTodos]
   );
 
   const allCompleted = useMemo(
     () => normalizedTodos.filter((t) => t.isCompleted),
-    [normalizedTodos],
+    [normalizedTodos]
   );
 
   const visibleIncomplete = useMemo(() => {
@@ -244,7 +244,7 @@ function TodoWrapper() {
 
   const activeTodo = useMemo(
     () => todos.find((t) => t.id === activeId) || null,
-    [todos, activeId],
+    [todos, activeId]
   );
 
   const runningLabel = useMemo(() => {
@@ -441,7 +441,7 @@ function TodoWrapper() {
       const raw = Number(soundVolume);
       const vol01 = Math.max(
         0,
-        Math.min(1, Number.isFinite(raw) ? raw / 3.5 : 1),
+        Math.min(1, Number.isFinite(raw) ? raw / 3.5 : 1)
       );
 
       await playAlarmNativeRaw(soundPath, vol01);
@@ -813,7 +813,7 @@ function TodoWrapper() {
         const raw = Number(soundVolume);
         const vol01 = Math.max(
           0,
-          Math.min(1, Number.isFinite(raw) ? raw / 3.5 : 1),
+          Math.min(1, Number.isFinite(raw) ? raw / 3.5 : 1)
         );
 
         // ✅ 用 raw：不會把 isNativePlaying 變 false/true
@@ -1008,10 +1008,10 @@ function TodoWrapper() {
 
     (async () => {
       unTheme = await listen("settings://theme", (e) =>
-        setThemeMode(String(e.payload)),
+        setThemeMode(String(e.payload))
       );
       unAccent = await listen("settings://accent", (e) =>
-        setAccent(String(e.payload)),
+        setAccent(String(e.payload))
       );
     })();
 
@@ -1033,7 +1033,7 @@ function TodoWrapper() {
       else if (mode === "dark") root.dataset.theme = "dark";
       else {
         const prefersDark = window.matchMedia?.(
-          "(prefers-color-scheme: dark)",
+          "(prefers-color-scheme: dark)"
         )?.matches;
         root.dataset.theme = prefersDark ? "dark" : "light";
       }
@@ -1106,8 +1106,8 @@ function TodoWrapper() {
     if (isLocked) return;
     setTodos(
       todos.map((todo) =>
-        todo.id === id ? { ...todo, isCompleted: !todo.isCompleted } : todo,
-      ),
+        todo.id === id ? { ...todo, isCompleted: !todo.isCompleted } : todo
+      )
     );
   };
 
@@ -1117,7 +1117,7 @@ function TodoWrapper() {
       prev.map((t) => {
         if (t.id === id) return { ...t, isEditing: !t.isEditing };
         return { ...t, isEditing: false };
-      }),
+      })
     );
   };
 
@@ -1132,8 +1132,8 @@ function TodoWrapper() {
               minutes: minutes ?? t.minutes,
               isEditing: false,
             }
-          : t,
-      ),
+          : t
+      )
     );
   };
 
@@ -1178,8 +1178,8 @@ function TodoWrapper() {
 
     setTodos((prev) =>
       prev.map((t) =>
-        t.id === activeId ? { ...t, isCompleted: true, isEditing: false } : t,
-      ),
+        t.id === activeId ? { ...t, isCompleted: true, isEditing: false } : t
+      )
     );
 
     endAtRef.current = null;
