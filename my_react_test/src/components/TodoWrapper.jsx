@@ -1113,26 +1113,26 @@ function TodoWrapper() {
 
   const toggleIsEditing = (id) => {
     if (isLocked) return;
-    setTodos(
-      todos.map((todo) => {
-        if (todo.id === id) return { ...todo, isEditing: !todo.isEditing };
-        return { ...todo, isEditing: false };
+    setTodos((prev) =>
+      prev.map((t) => {
+        if (t.id === id) return { ...t, isEditing: !t.isEditing };
+        return { ...t, isEditing: false };
       }),
     );
   };
 
   const editTodo = (id, newContent, minutes) => {
     if (isLocked) return;
-    setTodos(
-      todos.map((todo) =>
-        todo.id === id
+    setTodos((prev) =>
+      prev.map((t) =>
+        t.id === id
           ? {
-              ...todo,
+              ...t,
               content: newContent,
-              minutes: minutes ?? todo.minutes,
+              minutes: minutes ?? t.minutes,
               isEditing: false,
             }
-          : todo,
+          : t,
       ),
     );
   };

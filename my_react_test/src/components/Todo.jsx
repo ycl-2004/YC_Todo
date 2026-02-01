@@ -130,7 +130,12 @@ function Todo({
 
           <button
             className="icon-btn"
-            onClick={() => toggleIsEditing(todo.id)}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleIsEditing(todo.id);
+            }}
             aria-label="Edit"
             title="Edit"
             disabled={isLocked}
@@ -140,7 +145,12 @@ function Todo({
 
           <button
             className="icon-btn danger"
-            onClick={() => deleteTodo(todo.id)}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              deleteTodo(todo.id);
+            }}
             aria-label="Delete"
             title="Delete"
             disabled={isLocked}

@@ -47,7 +47,9 @@ export default function MinuteSelect({
 
   // refs + callbacks
   buttonRef, // optional ref passed from parent
-  onDone, // ✅ Enter while open => close + notify parent
+  onDone, // optional: Enter while open => close + notify parent (not used in your EditForm now)
+
+  onOpenChange, // ✅ NEW: report open state to parent
 }) {
   const MAX_HOURS = Math.floor(MAX_TOTAL / 60);
   const hoursOptions = useMemo(() => buildRange(0, MAX_HOURS), [MAX_HOURS]);
@@ -66,6 +68,12 @@ export default function MinuteSelect({
 
   const [hourHighlightTop, setHourHighlightTop] = useState(CENTER_ROW * ITEM_H);
   const [minHighlightTop, setMinHighlightTop] = useState(CENTER_ROW * ITEM_H);
+
+  // ✅ IMPORTANT: always use this to open/close so parent can track timeOpen
+  const setOpenSafe = (next) => {
+    setOpen(next);
+    onOpenChange?.(next);
+  };
 
   const getAnchorEl = () => {
     const fallbackBtn = rootRef.current?.querySelector(".minute-btn");
@@ -117,13 +125,15 @@ export default function MinuteSelect({
       const pop = document.getElementById("minute-popover");
       if (rootRef.current?.contains(e.target)) return;
       if (pop?.contains(e.target)) return;
-      setOpen(false);
+      setOpenSafe(false);
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ✅ KEYBOARD (works even when focus is inside the portal)
+  // capture + stopPropagation => EditForm will NOT receive Enter when picker is open
   useEffect(() => {
     if (!open || disabled) return;
 
@@ -133,14 +143,14 @@ export default function MinuteSelect({
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
-        setOpen(false);
+        setOpenSafe(false);
         return;
       }
 
       if (e.key === "Enter") {
         e.preventDefault();
         e.stopPropagation();
-        setOpen(false);
+        setOpenSafe(false);
         onDone?.();
         return;
       }
@@ -165,7 +175,7 @@ export default function MinuteSelect({
 
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [open, disabled, value, onChange, onDone]);
+  }, [open, disabled, value, onChange, onDone, onOpenChange]);
 
   // wheel scroll speed boost
   useEffect(() => {
@@ -332,7 +342,6 @@ export default function MinuteSelect({
       cancelAnimationFrame(rafRef.current);
       wheel.removeEventListener("scroll", onScroll);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, hoursOptions, value]);
 
   // scroll -> live select (minutes)
@@ -370,7 +379,7 @@ export default function MinuteSelect({
 
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      setOpen(true);
+      setOpenSafe(true);
     }
   };
 
@@ -514,7 +523,7 @@ export default function MinuteSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpenSafe(!open)} // ✅ IMPORTANT
       >
         <span>{formatBtnLabel(value)}</span>
         <span className="chev">▾</span>
