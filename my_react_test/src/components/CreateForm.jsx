@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core"; // ✅ NEW
 import MinuteSelect from "./MinuteSelect";
 import TagSelect from "./TagSelect";
 
 function CreateForm({ addTodo, isLocked, tags }) {
-  const formRef = useRef(null); // ✅ NEW
+  const formRef = useRef(null);
 
   const [task, setTask] = useState("");
   const [minutes, setMinutes] = useState(25);
@@ -33,6 +34,19 @@ function CreateForm({ addTodo, isLocked, tags }) {
         onChange={(e) => setTask(e.target.value)}
         disabled={isLocked}
         autoFocus
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") return;
+          if (e.isComposing) return; // ✅ 中文输入法选字时不触发
+          if (isLocked) return;
+
+          // ✅ 输入框为空：Enter => 收起整个 app（popover）
+          if (task.trim().length === 0) {
+            e.preventDefault(); // 不要 submit form
+            e.stopPropagation(); // 不要让事件冒泡到别处
+            invoke("hide_popover_cmd");
+          }
+          // ✅ 有内容：不拦截，让它正常 submit（走 handleSubmit）
+        }}
       />
 
       <TagSelect

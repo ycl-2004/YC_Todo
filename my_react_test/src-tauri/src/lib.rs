@@ -94,6 +94,20 @@ fn stop_alarm(state: State<AlarmState>) -> Result<(), String> {
   Ok(())
 }
 
+#[tauri::command]
+fn hide_popover_cmd(app: tauri::AppHandle) -> Result<(), String> {
+  // 关键：给 closure 用一个 clone，避免 borrow/move 冲突
+  let app_ui = app.clone();
+
+  let _ = app.run_on_main_thread(move || {
+    if app_ui.is_popover_shown() {
+      app_ui.hide_popover();
+    }
+  });
+
+  Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -101,7 +115,7 @@ pub fn run() {
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_nspopover::init())
     .manage(AlarmState(Mutex::new(None)))
-    .invoke_handler(tauri::generate_handler![pick_audio, play_alarm, stop_alarm])
+    .invoke_handler(tauri::generate_handler![pick_audio, play_alarm, stop_alarm, hide_popover_cmd])
     .setup(|app| {
       eprintln!("✅ setup start");
 

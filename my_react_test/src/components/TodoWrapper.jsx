@@ -1193,6 +1193,46 @@ function TodoWrapper() {
     return `${remainingCount}`;
   }, [isLocked, activeId, remainingSec, remainingCount]);
 
+  // -----------------------------
+  // Global: Enter to hide popover (home page)
+  // -----------------------------
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== "Enter") return;
+      if (e.isComposing) return;
+
+      // 1) 正在输入就不要收起
+      const t = e.target;
+      const isTyping =
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable);
+
+      if (isTyping) return;
+
+      // 2) Edit mode 不收起（Enter 应该用来 save）
+      if (todos.some((x) => x.isEditing)) return;
+
+      if (showSoundPanel) return;
+      // 3) 任意 popover 打开时不收起（MinuteSelect / TagSelect）
+      // MinuteSelect 你用的是 id="minute-popover"
+      if (document.getElementById("minute-popover")) return;
+
+      // 如果你之后做 TagSelect wheel，也建议给它一个 id，比如 "tagwheel-popover"
+      if (document.getElementById("tagwheel-popover")) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      invoke("hide_popover_cmd");
+    };
+
+    // capture=true：保证不会被别的组件抢走（更稳）
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [todos, showSoundPanel]);
+
   return (
     <div className="menu-card">
       <div className="menu-main">
