@@ -5,7 +5,7 @@ const QUICK_PRESETS = [25, 45, 60, 90];
 
 // Total minutes settings (value is STILL total minutes)
 const MIN_TOTAL = 1;
-const MAX_TOTAL = 480;
+const MAX_TOTAL = 600;
 
 // Wheel settings
 const ITEM_H = 36;
@@ -162,7 +162,7 @@ export default function MinuteSelect({
         const next = clamp(
           Number(value) + (e.key === "ArrowDown" ? 1 : -1),
           MIN_TOTAL,
-          MAX_TOTAL,
+          MAX_TOTAL
         );
 
         onChange(next);
@@ -210,7 +210,7 @@ export default function MinuteSelect({
 
   const idxFromScrollTop = (optionsLen, scrollTop) => {
     const idx = Math.round(
-      (scrollTop - WHEEL_PAD + CENTER_ROW * ITEM_H) / ITEM_H,
+      (scrollTop - WHEEL_PAD + CENTER_ROW * ITEM_H) / ITEM_H
     );
     return clamp(idx, 0, optionsLen - 1);
   };
@@ -229,7 +229,7 @@ export default function MinuteSelect({
       () => {
         programmaticRef.current = false;
       },
-      behavior === "auto" ? 0 : 220,
+      behavior === "auto" ? 0 : 220
     );
   };
 
@@ -258,12 +258,12 @@ export default function MinuteSelect({
     updateHighlight(
       hourWheelRef.current,
       hoursOptions.length,
-      setHourHighlightTop,
+      setHourHighlightTop
     );
     updateHighlight(
       minWheelRef.current,
       minutesOptions.length,
-      setMinHighlightTop,
+      setMinHighlightTop
     );
   };
 
@@ -282,12 +282,12 @@ export default function MinuteSelect({
       updateHighlight(
         hourWheelRef.current,
         hoursOptions.length,
-        setHourHighlightTop,
+        setHourHighlightTop
       );
       updateHighlight(
         minWheelRef.current,
         minutesOptions.length,
-        setMinHighlightTop,
+        setMinHighlightTop
       );
     });
 
@@ -306,12 +306,12 @@ export default function MinuteSelect({
       updateHighlight(
         hourWheelRef.current,
         hoursOptions.length,
-        setHourHighlightTop,
+        setHourHighlightTop
       );
       updateHighlight(
         minWheelRef.current,
         minutesOptions.length,
-        setMinHighlightTop,
+        setMinHighlightTop
       );
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
