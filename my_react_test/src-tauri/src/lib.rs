@@ -63,7 +63,10 @@ async fn pick_audio(app: tauri::AppHandle) -> Result<Option<String>, String> {
 fn play_alarm(state: State<AlarmState>, path: String, volume: f32) -> Result<(), String> {
   // 先停掉上一個 alarm（避免重疊播放）
   {
-    let mut guard = state.0.lock().map_err(|_| "Alarm mutex poisoned".to_string())?;
+    let mut guard = state
+      .0
+      .lock()
+      .map_err(|_| "Alarm mutex poisoned".to_string())?;
     if let Some(mut child) = guard.take() {
       let _ = child.kill();
     }
@@ -79,7 +82,10 @@ fn play_alarm(state: State<AlarmState>, path: String, volume: f32) -> Result<(),
     .spawn()
     .map_err(|e| format!("spawn afplay failed: {}", e))?;
 
-  let mut guard = state.0.lock().map_err(|_| "Alarm mutex poisoned".to_string())?;
+  let mut guard = state
+    .0
+    .lock()
+    .map_err(|_| "Alarm mutex poisoned".to_string())?;
   *guard = Some(child);
 
   Ok(())
@@ -87,7 +93,10 @@ fn play_alarm(state: State<AlarmState>, path: String, volume: f32) -> Result<(),
 
 #[tauri::command]
 fn stop_alarm(state: State<AlarmState>) -> Result<(), String> {
-  let mut guard = state.0.lock().map_err(|_| "Alarm mutex poisoned".to_string())?;
+  let mut guard = state
+    .0
+    .lock()
+    .map_err(|_| "Alarm mutex poisoned".to_string())?;
   if let Some(mut child) = guard.take() {
     let _ = child.kill();
   }
@@ -111,6 +120,71 @@ pub fn run() {
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_nspopover::init())
+
+    // ✅ Global shortcut plugin registered here (most stable)
+    .plugin(
+      tauri_plugin_global_shortcut::Builder::new()
+        .with_handler(|app, shortcut, event| {
+          use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
+    
+          if event.state() != ShortcutState::Pressed {
+            return;
+          }
+    
+          // 目标快捷键（本地创建没问题）
+          let toggle_popover = Shortcut::new(
+            Some(Modifiers::META | Modifiers::SHIFT),
+            Code::KeyJ,
+          );
+    
+          let toggle_sound = Shortcut::new(
+            Some(Modifiers::META | Modifiers::SHIFT),
+            Code::KeyK,
+          );
+    
+          // ✅ 先算成 bool，避免把 shortcut 引用带进 'static closure
+          let is_popover = shortcut == &toggle_popover;
+          let is_sound = shortcut == &toggle_sound;
+    
+          if !is_popover && !is_sound {
+            return;
+          }
+    
+          // ✅ 关键：拿到 OWNED 的 handle（不要把 &AppHandle app move 进去）
+          let h = app.app_handle().clone();
+    
+          // ✅ 先在 main thread 做 show/hide（只捕获 owned handle）
+          let h_ui = h.clone();
+          let _ = h.run_on_main_thread(move || {
+            if is_popover {
+              if !h_ui.is_popover_shown() {
+                h_ui.show_popover();
+              } else {
+                h_ui.hide_popover();
+              }
+              return;
+            }
+    
+            if is_sound {
+              if !h_ui.is_popover_shown() {
+                h_ui.show_popover();
+              }
+            }
+          });
+    
+          // ✅ Sound 需要延迟 emit，避免 popover/webview 还没 ready
+          if is_sound {
+            let h_emit = h.clone();
+            tauri::async_runtime::spawn(async move {
+              std::thread::sleep(std::time::Duration::from_millis(80));
+              let _ = h_emit.emit("ui://toggle-sound", ());
+            });
+          }
+        })
+        .build(),
+    )
+    
+
     .manage(AlarmState(Mutex::new(None)))
     .invoke_handler(tauri::generate_handler![
       pick_audio,
@@ -277,52 +351,36 @@ pub fn run() {
         }
       });
 
-      // ---------- Global Shortcut (macOS) ----------
-      // ✅ 用快捷键在后台也能 toggle popover
-      // 默认：⌘ + Shift + Y
+      // ---------- Register global shortcuts (macOS) ----------
+      // (Plugin is already installed in Builder above; setup only registers keys)
       #[cfg(target_os = "macos")]
       {
-        use tauri_plugin_global_shortcut::{
-          Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState,
-        };
+        use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
-        let toggle_shortcut =
+        let gs = app.handle().global_shortcut();
+
+        let toggle_popover =
           Shortcut::new(Some(Modifiers::META | Modifiers::SHIFT), Code::KeyJ);
+        let toggle_sound =
+          Shortcut::new(Some(Modifiers::META | Modifiers::SHIFT), Code::KeyK);
 
-
-        let shortcut_for_handler = toggle_shortcut.clone();
-        let app_handle = app.handle().clone();
-
-        // 在 setup 里安装插件 + handler（你这个项目结构这样写最贴近现有逻辑）
-        app_handle.plugin(
-          tauri_plugin_global_shortcut::Builder::new()
-            .with_handler(move |app, shortcut, event| {
-              if shortcut == &shortcut_for_handler
-                && event.state() == ShortcutState::Pressed
-              {
-                let h = app.app_handle().clone();
-                let h_ui = h.clone();
-
-                let _ = h.run_on_main_thread(move || {
-                  if !h_ui.is_popover_shown() {
-                    h_ui.show_popover();
-                  } else {
-                    h_ui.hide_popover();
-                  }
-                });
-              }
-            })
-            .build(),
-        )?;
-
-        // 注册快捷键
-        app_handle.global_shortcut().register(toggle_shortcut)?;
+        // ignore error if already registered during hot reload
+        if let Err(e) = gs.register(toggle_popover) {
+          eprintln!("❌ register ⌘⇧J failed: {e}");
+        } else {
+          eprintln!("✅ registered ⌘⇧J");
+        }
+        
+        if let Err(e) = gs.register(toggle_sound) {
+          eprintln!("❌ register ⌘⇧K failed: {e}");
+        } else {
+          eprintln!("✅ registered ⌘⇧K");
+        }
+        
       }
 
       // ✅ 首次啟動：延遲一下再彈出 popover（避免使用者以為閃退）
-      let h = app.app_handle().clone();
-      let h_ui = h.clone();
-
+      let h = app.handle().clone();
       tauri::async_runtime::spawn_blocking(move || {
         std::thread::sleep(std::time::Duration::from_millis(300));
         let h2 = h.clone();

@@ -1021,6 +1021,54 @@ function TodoWrapper() {
     };
   }, []);
 
+  /// -----------------------------
+  // Listen global shortcut: toggle Sound panel
+  // -----------------------------
+  const lastToggleAtRef = useRef(0);
+
+  useEffect(() => {
+    // ✅ HMR/StrictMode 防重複：如果之前有 listener，先關掉
+    if (window.__unlistenToggleSound) {
+      try {
+        window.__unlistenToggleSound();
+      } catch {}
+      window.__unlistenToggleSound = null;
+    }
+
+    let disposed = false;
+
+    (async () => {
+      const un = await listen("ui://toggle-sound", (e) => {
+        // ✅ 冷卻去重：同一次按鍵造成的連發/雙 listener，80~150ms 內只吃一次
+        const now = performance.now();
+        if (now - lastToggleAtRef.current < 120) return;
+        lastToggleAtRef.current = now;
+
+        console.log("[ui://toggle-sound] received", e);
+
+        setShowSoundPanel((v) => !v); // ✅ 真正 toggle
+      });
+
+      if (disposed) {
+        un();
+        return;
+      }
+
+      // ✅ 存到全域，HMR 下下一次會先 unlisten
+      window.__unlistenToggleSound = un;
+    })();
+
+    return () => {
+      disposed = true;
+      if (window.__unlistenToggleSound) {
+        try {
+          window.__unlistenToggleSound();
+        } catch {}
+        window.__unlistenToggleSound = null;
+      }
+    };
+  }, []);
+
   // -----------------------------
   // Apply theme tokens
   // -----------------------------
