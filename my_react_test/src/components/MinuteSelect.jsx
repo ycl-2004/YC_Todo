@@ -3,12 +3,22 @@ import { createPortal } from "react-dom";
 
 const QUICK_PRESETS = [25, 45, 60, 90];
 
+// Wheel settings
+const MIN_MINUTES = 1;
+const MAX_MINUTES = 180;
+const ITEM_H = 36;
+const WHEEL_VISIBLE = 5; // keep odd
+const CENTER_ROW = Math.floor(WHEEL_VISIBLE / 2); // 2
+
 function buildMinuteOptions() {
-  const fine = Array.from({ length: 30 }, (_, i) => i + 1); // 1..30
-  const coarse = Array.from({ length: 18 }, (_, i) => 35 + i * 5); // 35..120
-  return Array.from(new Set([...QUICK_PRESETS, ...fine, ...coarse])).sort(
-    (a, b) => a - b,
+  return Array.from(
+    { length: MAX_MINUTES - MIN_MINUTES + 1 },
+    (_, i) => MIN_MINUTES + i,
   );
+}
+
+function clamp(n, a, b) {
+  return Math.max(a, Math.min(n, b));
 }
 
 export default function MinuteSelect({
@@ -17,78 +27,175 @@ export default function MinuteSelect({
   disabled,
   ariaLabel = "Minutes",
 }) {
-  const baseOptions = useMemo(() => buildMinuteOptions(), []);
-  const options = useMemo(() => {
-    const set = new Set(baseOptions);
-    set.add(Number(value));
-    return Array.from(set).sort((a, b) => a - b);
-  }, [baseOptions, value]);
-
+  const options = useMemo(() => buildMinuteOptions(), []);
   const [open, setOpen] = useState(false);
-  const rootRef = useRef(null);
-  const listRef = useRef(null);
 
-  // popover position (fixed)
+  const rootRef = useRef(null);
+  const wheelRef = useRef(null);
+
+  const programmaticRef = useRef(false);
+  const rafRef = useRef(0);
+  const lastIdxRef = useRef(-1);
+
   const [pos, setPos] = useState({ top: 0, left: 0, width: 180 });
+
+  // ✅ highlight 位置：默认在中间；到边界时跟着 item 走
+  const [highlightTop, setHighlightTop] = useState(CENTER_ROW * ITEM_H);
 
   const updatePosition = () => {
     const btn = rootRef.current?.querySelector(".minute-btn");
     if (!btn) return;
 
     const r = btn.getBoundingClientRect();
-    const popW = 200; // dropdown width
-    const popH = 240; // approx height (header + list max-height)
-    const gap = 8;
+    const popW = 180;
+    const popH = 290;
+    const gap = 6;
 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
-    // prefer open down; if not enough space, open up
-    const spaceBelow = vh - r.bottom;
-    const openUp = spaceBelow < popH + gap;
+    const openUp = vh - r.bottom < popH + gap;
 
     let top = openUp ? r.top - gap - popH : r.bottom + gap;
-
-    // align right edge with button right edge
     let left = r.right - popW;
 
-    // clamp within viewport
     left = Math.max(8, Math.min(left, vw - popW - 8));
     top = Math.max(8, Math.min(top, vh - popH - 8));
 
     setPos({ top, left, width: popW });
   };
 
-  // click outside to close
+  // close on outside click
   useEffect(() => {
-    const onDocDown = (e) => {
-      if (!rootRef.current) return;
+    const onDown = (e) => {
       const pop = document.getElementById("minute-popover");
-      if (rootRef.current.contains(e.target)) return;
-      if (pop && pop.contains(e.target)) return;
+      if (rootRef.current?.contains(e.target)) return;
+      if (pop?.contains(e.target)) return;
       setOpen(false);
     };
-    document.addEventListener("mousedown", onDocDown);
-    return () => document.removeEventListener("mousedown", onDocDown);
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  // when open: position + keep selected visible + listen resize
+  // ✅ 核心：把 idx 对齐到中心行（但到边界要 clamp，避免出现 gap）
+  const scrollToIdx = (idx, behavior = "auto") => {
+    const wheel = wheelRef.current;
+    if (!wheel) return;
+
+    const maxScroll = wheel.scrollHeight - wheel.clientHeight;
+
+    // 理想：让 idx 落在中心行
+    const ideal = idx * ITEM_H - CENTER_ROW * ITEM_H;
+
+    // clamp：顶到底不留空
+    const top = clamp(ideal, 0, Math.max(0, maxScroll));
+
+    programmaticRef.current = true;
+    lastIdxRef.current = idx;
+
+    wheel.scrollTo({ top, behavior });
+
+    window.setTimeout(
+      () => {
+        programmaticRef.current = false;
+      },
+      behavior === "auto" ? 0 : 220,
+    );
+  };
+
+  const centerToMinute = (m, behavior = "auto") => {
+    const idx = clamp(Number(m) - MIN_MINUTES, 0, options.length - 1);
+    scrollToIdx(idx, behavior);
+  };
+
+  // ✅ 根据 wheel.scrollTop 计算 idx（中心行取整）
+  const idxFromScrollTop = (scrollTop) => {
+    const idx = Math.round((scrollTop + CENTER_ROW * ITEM_H) / ITEM_H);
+    return clamp(idx, 0, options.length - 1);
+  };
+
+  // ✅ highlight：中间固定；但到边界时跟着 item 走（不出现空白感）
+  const updateHighlight = () => {
+    const wheel = wheelRef.current;
+    if (!wheel) return;
+
+    const idx = idxFromScrollTop(wheel.scrollTop);
+    const itemCenterY = idx * ITEM_H - wheel.scrollTop; // item 顶部相对 wheel
+    // 我们要 highlightTop 是 item 的 top（让框贴着 item）
+    // 但正常情况保持在中间
+    const maxScroll = wheel.scrollHeight - wheel.clientHeight;
+    const ideal = idx * ITEM_H - CENTER_ROW * ITEM_H;
+
+    const clamped = clamp(ideal, 0, Math.max(0, maxScroll));
+    const isEdge = clamped !== ideal;
+
+    if (isEdge) {
+      // 贴着真实 item（边界）
+      setHighlightTop(itemCenterY);
+    } else {
+      // 永远中间
+      setHighlightTop(CENTER_ROW * ITEM_H);
+    }
+  };
+
+  // open: position + center
   useEffect(() => {
     if (!open) return;
 
     updatePosition();
-    const onResize = () => updatePosition();
-    window.addEventListener("resize", onResize);
+    window.addEventListener("resize", updatePosition);
 
-    // small delay so DOM is ready
-    setTimeout(() => {
-      const el = listRef.current?.querySelector(`[data-value="${value}"]`);
-      el?.scrollIntoView({ block: "nearest" });
-    }, 0);
+    requestAnimationFrame(() => {
+      centerToMinute(Number(value), "auto");
+      updateHighlight();
+    });
 
-    return () => window.removeEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", updatePosition);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, value]);
+  }, [open]);
+
+  // value change: keep wheel synced (slider/quick)
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(() => {
+      centerToMinute(Number(value), "auto");
+      updateHighlight();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, open]);
+
+  // scroll -> live select
+  useEffect(() => {
+    if (!open) return;
+    const wheel = wheelRef.current;
+    if (!wheel) return;
+
+    const onScroll = () => {
+      if (programmaticRef.current) {
+        updateHighlight();
+        return;
+      }
+
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        const idx = idxFromScrollTop(wheel.scrollTop);
+
+        updateHighlight();
+
+        if (idx === lastIdxRef.current) return;
+        lastIdxRef.current = idx;
+
+        const next = options[idx];
+        if (next !== Number(value)) onChange(next);
+      });
+    };
+
+    wheel.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      wheel.removeEventListener("scroll", onScroll);
+    };
+  }, [open, options, onChange, value]);
 
   const handleKeyDown = (e) => {
     if (disabled) return;
@@ -103,14 +210,16 @@ export default function MinuteSelect({
       setOpen(false);
       return;
     }
+
     if (open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
       e.preventDefault();
-      const idx = options.indexOf(Number(value));
-      const next =
-        e.key === "ArrowDown"
-          ? options[Math.min(options.length - 1, idx + 1)]
-          : options[Math.max(0, idx - 1)];
+      const next = clamp(
+        Number(value) + (e.key === "ArrowDown" ? 1 : -1),
+        MIN_MINUTES,
+        MAX_MINUTES,
+      );
       onChange(next);
+      centerToMinute(next, "smooth");
     }
   };
 
@@ -124,53 +233,72 @@ export default function MinuteSelect({
         left: pos.left,
         width: pos.width,
       }}
-      role="listbox"
-      ref={listRef}
     >
       <div className="minute-pop-header">Minutes</div>
 
-      <div className="minute-pop-list">
+      <div className="minute-quick-row">
         {QUICK_PRESETS.map((m) => (
           <button
-            key={`q-${m}`}
+            key={m}
             type="button"
-            className={`minute-item ${Number(value) === m ? "active" : ""}`}
-            data-value={m}
+            className={`minute-quick ${Number(value) === m ? "active" : ""}`}
             onClick={() => {
               onChange(m);
-              setOpen(false);
+              centerToMinute(m, "smooth");
             }}
           >
-            <span>{m}m</span>
-            {Number(value) === m && <span className="tick">✓</span>}
+            {m}m
           </button>
         ))}
+      </div>
 
-        <div className="minute-divider" />
+      <div className="minute-divider" />
 
+      <div className="minute-slider-row">
+        <input
+          className="minute-slider"
+          type="range"
+          min={MIN_MINUTES}
+          max={MAX_MINUTES}
+          value={Number(value)}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            onChange(v);
+            centerToMinute(v, "auto");
+          }}
+        />
+        <div className="minute-slider-value">{value}m</div>
+      </div>
+
+      <div className="minute-wheel" ref={wheelRef} aria-label="Minute picker">
         {options.map((m) => (
           <button
             key={m}
             type="button"
-            className={`minute-item ${Number(value) === m ? "active" : ""}`}
-            data-value={m}
+            className={`minute-wheel-item ${Number(value) === m ? "active" : ""}`}
             onClick={() => {
               onChange(m);
-              setOpen(false);
+              centerToMinute(m, "smooth");
             }}
           >
-            <span>{m}m</span>
-            {Number(value) === m && <span className="tick">✓</span>}
+            {m}m
           </button>
         ))}
+
+        {/* ✅ highlight：平常在中间；到边界跟着 item 走 */}
+        <div
+          className="minute-wheel-highlight"
+          style={{ top: `${highlightTop}px` }}
+          aria-hidden="true"
+        />
       </div>
     </div>
   );
 
   return (
     <div
-      className={`minute-select ${disabled ? "is-disabled" : ""}`}
       ref={rootRef}
+      className={`minute-select ${disabled ? "is-disabled" : ""}`}
       onKeyDown={handleKeyDown}
     >
       <button

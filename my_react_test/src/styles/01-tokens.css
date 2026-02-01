@@ -107,6 +107,57 @@
   --todo-grad-2: color-mix(in srgb, var(--accent) 12%, rgba(28, 24, 36, 1));
 }
 
+/* ==============================
+   Minute slider — Dark mode fix
+   ============================== */
+:root[data-theme="dark"] .minute-slider-value {
+  color: color-mix(in srgb, var(--ink) 92%, white 8%);
+  opacity: 1;
+}
+
+:root[data-theme="dark"] .minute-slider {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, white 18%, transparent);
+  outline: none;
+}
+
+:root[data-theme="dark"] .minute-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, white 18%, transparent);
+}
+
+:root[data-theme="dark"] .minute-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+
+  background: color-mix(in srgb, var(--surface-2) 55%, white 45%);
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+
+  cursor: pointer;
+  margin-top: -5px;
+}
+
+:root[data-theme="dark"] .minute-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, white 18%, transparent);
+}
+:root[data-theme="dark"] .minute-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+
+  background: color-mix(in srgb, var(--surface-2) 55%, white 45%);
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
 /*
 ==================================
 
