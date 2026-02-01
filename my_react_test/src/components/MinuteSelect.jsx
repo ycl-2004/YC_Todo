@@ -77,6 +77,27 @@ export default function MinuteSelect({
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
+  // ✅ wheel scroll speed boost (mouse/trackpad)
+  useEffect(() => {
+    if (!open) return;
+    const wheel = wheelRef.current;
+    if (!wheel) return;
+
+    const SPEED = 2.4; // 2.0~3.5 之间自己调，越大越快
+
+    const onWheel = (e) => {
+      // 如果用户正在 pinch-zoom 或系统手势，别碰
+      if (e.ctrlKey) return;
+
+      // ✅ 我们自己滚更远一点
+      e.preventDefault();
+      wheel.scrollTop += e.deltaY * SPEED;
+    };
+
+    wheel.addEventListener("wheel", onWheel, { passive: false });
+    return () => wheel.removeEventListener("wheel", onWheel);
+  }, [open]);
+
   // ✅ 核心：把 idx 对齐到中心行（但到边界要 clamp，避免出现 gap）
   const scrollToIdx = (idx, behavior = "auto") => {
     const wheel = wheelRef.current;
