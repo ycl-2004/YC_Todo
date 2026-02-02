@@ -31,6 +31,49 @@ function safeParse(json, fallback) {
   }
 }
 
+const formatShortcutDisplay = ({ meta, shift, alt, ctrl }, code) => {
+  const parts = [];
+  if (ctrl) parts.push("⌃");
+  if (alt) parts.push("⌥");
+  if (shift) parts.push("⇧");
+  if (meta) parts.push("⌘");
+
+  // code: "KeyK" / "KeyJ" / "Digit1" etc.
+  let keyPart = code || "";
+  if (typeof keyPart === "string" && keyPart.startsWith("Key")) {
+    keyPart = keyPart.replace("Key", "");
+  } else if (typeof keyPart === "string" && keyPart.startsWith("Digit")) {
+    keyPart = keyPart.replace("Digit", "");
+  }
+
+  return `${parts.join("")}${keyPart}`;
+};
+
+const keyEventToShortcut = (e) => {
+  // 只做组合键（必须至少一个 modifier）
+  const mods = {
+    meta: e.metaKey,
+    shift: e.shiftKey,
+    alt: e.altKey,
+    ctrl: e.ctrlKey,
+  };
+
+  const hasMod = mods.meta || mods.shift || mods.alt || mods.ctrl;
+  if (!hasMod) return null;
+
+  // 过滤纯 modifier
+  const k = e.key;
+  if (k === "Meta" || k === "Shift" || k === "Alt" || k === "Control") {
+    return null;
+  }
+
+  const code = e.code; // like "KeyK"
+  if (!code) return null;
+
+  const display = formatShortcutDisplay(mods, code);
+  return { mods, code, display };
+};
+
 function TodoWrapper() {
   // -----------------------------
   // Load initial state from storage
@@ -284,6 +327,18 @@ function TodoWrapper() {
   });
 
   const [showSoundPanel, setShowSoundPanel] = useState(false);
+
+  // -----------------------------
+  // Shortcut capture overlay (for user custom shortcut)
+  // -----------------------------
+  const [shortcutCapture, setShortcutCapture] = useState({
+    open: false,
+    target: null, // "sound" | "popover" | null
+    hint: "",
+  });
+
+  const [pendingShortcut, setPendingShortcut] = useState(null);
+  // { mods: {meta,shift,alt,ctrl}, code: "KeyK", display: "⌘⇧K" }
 
   const [isNativePlaying, setIsNativePlaying] = useState(false); // ✅ NEW
   const nativeRestartTimerRef = useRef(null);
@@ -1021,6 +1076,43 @@ function TodoWrapper() {
     };
   }, []);
 
+  // -----------------------------
+  // Listen tray menu -> open shortcut capture overlay
+  // -----------------------------
+  useEffect(() => {
+    let un1, un2;
+
+    (async () => {
+      // Rust 会 emit: ui://capture-shortcut with payload: { target: "sound" | "popover" }
+      un1 = await listen("ui://capture-shortcut", (e) => {
+        const target = e?.payload?.target;
+        if (target !== "sound" && target !== "popover") return;
+
+        setPendingShortcut(null);
+        setShortcutCapture({
+          open: true,
+          target,
+          hint:
+            target === "sound"
+              ? "Press the shortcut you want to set (⌘⇧K). Press Esc to cancel."
+              : "Press the shortcut you want to set (⌘⇧J). Press Esc to cancel.",
+        });
+      });
+
+      // 可选：Rust 更新完后可以回传成功提示
+      un2 = await listen("ui://shortcut-updated", (e) => {
+        // payload: { target, display }
+        // 你可以在这里做 toast；现在先简单关掉 overlay
+        setShortcutCapture((s) => ({ ...s, open: false }));
+      });
+    })();
+
+    return () => {
+      un1?.();
+      un2?.();
+    };
+  }, []);
+
   /// -----------------------------
   // Listen global shortcut: toggle Sound panel
   // -----------------------------
@@ -1292,318 +1384,403 @@ function TodoWrapper() {
     return () => document.removeEventListener("keydown", onKey, true);
   }, [todos, showSoundPanel]);
 
+  useEffect(() => {
+    if (!shortcutCapture.open) return;
+
+    const onKeyDown = async (e) => {
+      // Esc 取消
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShortcutCapture((s) => ({ ...s, open: false }));
+        return;
+      }
+
+      const sc = keyEventToShortcut(e);
+      if (!sc) return;
+
+      e.preventDefault();
+
+      setPendingShortcut(sc);
+
+      // 调 Rust 保存 + 注册
+      try {
+        await invoke("set_shortcut", {
+          target: shortcutCapture.target, // "sound" | "popover"
+          code: sc.code,
+          meta: sc.mods.meta,
+          shift: sc.mods.shift,
+          alt: sc.mods.alt,
+          ctrl: sc.mods.ctrl,
+        });
+
+        // Rust 成功后会 emit ui://shortcut-updated，你的 un2 会关掉 overlay
+        // 这里不用手动关也行
+      } catch (err) {
+        // 失败就给个提示（你也可以做 toast）
+        alert(String(err));
+        setPendingShortcut(null);
+      }
+    };
+
+    // capture=true：更稳，不会被 input 抢走
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [shortcutCapture.open, shortcutCapture.target]);
+
   return (
-    <div className="menu-card">
-      <div className="menu-main">
-        <header className="menu-header">
-          <div className="header-row">
-            <div className="title-wrap">
-              {editing === "title" ? (
-                <input
-                  className="title-input"
-                  value={title}
-                  autoFocus
-                  onChange={(e) => setTitle(e.target.value)}
-                  onBlur={() => setEditing(null)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") setEditing(null);
-                    if (e.key === "Escape") setEditing(null);
-                  }}
-                />
-              ) : (
-                <h1 onDoubleClick={() => setEditing("title")}>{title}</h1>
-              )}
-
-              {editing === "subtitle" ? (
-                <input
-                  className="subtitle-input"
-                  value={subtitle}
-                  autoFocus
-                  onChange={(e) => setSubtitle(e.target.value)}
-                  onBlur={() => setEditing(null)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") setEditing(null);
-                    if (e.key === "Escape") setEditing(null);
-                  }}
-                />
-              ) : (
-                <span
-                  className="subtitle"
-                  onDoubleClick={() => setEditing("subtitle")}
-                >
-                  {subtitle}
-                </span>
-              )}
-            </div>
-
-            {/* ✅ 重點：header-badges 變定位容器，sound-panel absolute 才會貼著它 */}
-            <div
-              className="header-badges"
-              style={{ position: "relative", zIndex: 10 }}
-            >
-              <button type="button" className="badge badge-timer">
-                {headerRight}
-              </button>
+    <>
+      {shortcutCapture.open && (
+        <div
+          className="shortcut-overlay"
+          onMouseDown={() => setShortcutCapture((s) => ({ ...s, open: false }))}
+        >
+          <div
+            className="shortcut-modal"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="shortcut-head">
+              <div className="shortcut-title">
+                Shortcut：
+                {shortcutCapture.target === "sound" ? "Sound" : "Popover"}
+              </div>
 
               <button
                 type="button"
-                className="badge-music"
-                onClick={() => setShowSoundPanel((v) => !v)}
-                aria-label="Sound"
-                title="Sound"
+                className="shortcut-esc"
+                onClick={() =>
+                  setShortcutCapture((s) => ({ ...s, open: false }))
+                }
+                aria-label="Cancel"
+                title="Esc"
               >
-                🎵
+                Esc
               </button>
+            </div>
 
-              {showSoundPanel && (
-                <div className="sound-panel" ref={soundPanelWrapRef}>
-                  <div className="sound-row">
-                    <div className="sound-title">Sound</div>
+            <div className="shortcut-hint">{shortcutCapture.hint}</div>
 
-                    <button
-                      type="button"
-                      className="sound-close"
-                      onClick={async () => {
-                        setShowSoundPanel(false);
-                        stopSound();
-                        await stopAlarmNative();
-                      }}
-                      aria-label="Close sound panel"
-                      title="Close"
-                    >
-                      ✕
-                    </button>
-                  </div>
+            <div className="shortcut-keybox">
+              {pendingShortcut ? pendingShortcut.display : "Waiting for keys…"}
+            </div>
 
-                  <div className="sound-meta" title={soundName || ""}>
-                    {soundDataUrl
-                      ? `Selected: ${soundName || "mp3"}`
-                      : "No sound selected"}
-                  </div>
+            <div className="shortcut-rule">
+              Must include at least one modifier (⌘ / ⇧ / ⌥ / ⌃). Esc to cancel
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="menu-card">
+        <div className="menu-main">
+          <header className="menu-header">
+            <div className="header-row">
+              <div className="title-wrap">
+                {editing === "title" ? (
+                  <input
+                    className="title-input"
+                    value={title}
+                    autoFocus
+                    onChange={(e) => setTitle(e.target.value)}
+                    onBlur={() => setEditing(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") setEditing(null);
+                      if (e.key === "Escape") setEditing(null);
+                    }}
+                  />
+                ) : (
+                  <h1 onDoubleClick={() => setEditing("title")}>{title}</h1>
+                )}
 
-                  <div className="sound-actions">
-                    <button
-                      type="button"
-                      className="btn ghost"
-                      onClick={onPickMp3}
-                      title="Pick an mp3"
-                    >
-                      Upload
-                    </button>
+                {editing === "subtitle" ? (
+                  <input
+                    className="subtitle-input"
+                    value={subtitle}
+                    autoFocus
+                    onChange={(e) => setSubtitle(e.target.value)}
+                    onBlur={() => setEditing(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") setEditing(null);
+                      if (e.key === "Escape") setEditing(null);
+                    }}
+                  />
+                ) : (
+                  <span
+                    className="subtitle"
+                    onDoubleClick={() => setEditing("subtitle")}
+                  >
+                    {subtitle}
+                  </span>
+                )}
+              </div>
 
-                    <button
-                      type="button"
-                      className="btn ghost"
-                      onClick={playAlarmNative}
-                      disabled={!soundPath}
-                      title="Play (Native)"
-                    >
-                      Play
-                    </button>
+              {/* ✅ 重點：header-badges 變定位容器，sound-panel absolute 才會貼著它 */}
+              <div
+                className="header-badges"
+                style={{ position: "relative", zIndex: 10 }}
+              >
+                <button type="button" className="badge badge-timer">
+                  {headerRight}
+                </button>
 
-                    <button
-                      type="button"
-                      className="btn ghost"
-                      onClick={stopAlarmNative}
-                      disabled={!soundPath}
-                      title="Stop (Native)"
-                    >
-                      Stop
-                    </button>
+                <button
+                  type="button"
+                  className="badge-music"
+                  onClick={() => setShowSoundPanel((v) => !v)}
+                  aria-label="Sound"
+                  title="Sound"
+                >
+                  🎵
+                </button>
 
-                    <button
-                      type="button"
-                      className="btn ghost"
-                      onClick={togglePauseResume}
-                      disabled={!soundDataUrl && !soundPath}
-                      title="Pause / Resume"
-                    >
-                      {isSoundPlaying ? "Pause" : "Resume"}
-                    </button>
+                {showSoundPanel && (
+                  <div className="sound-panel" ref={soundPanelWrapRef}>
+                    <div className="sound-row">
+                      <div className="sound-title">Sound</div>
 
-                    <button
-                      type="button"
-                      className="btn ghost"
-                      onClick={restartSound}
-                      disabled={!soundDataUrl}
-                      title="Restart"
-                    >
-                      Restart
-                    </button>
+                      <button
+                        type="button"
+                        className="sound-close"
+                        onClick={async () => {
+                          setShowSoundPanel(false);
+                          stopSound();
+                          await stopAlarmNative();
+                        }}
+                        aria-label="Close sound panel"
+                        title="Close"
+                      >
+                        ✕
+                      </button>
+                    </div>
 
-                    <button
-                      type="button"
-                      className="btn ghost"
-                      onClick={clearSound}
-                      disabled={!soundDataUrl}
-                      title="Clear"
-                    >
-                      Clear
-                    </button>
-                  </div>
+                    <div className="sound-meta" title={soundName || ""}>
+                      {soundDataUrl
+                        ? `Selected: ${soundName || "mp3"}`
+                        : "No sound selected"}
+                    </div>
 
-                  <div className="sound-slider">
-                    <div className="muted">Volume</div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="3.5"
-                      step="0.05"
-                      value={Number(soundVolume) || 1}
-                      onChange={(e) => setSoundVolume(e.target.value)}
-                    />
-                    <div className="muted">
-                      {Number(soundVolume || 1).toFixed(2)}x
+                    <div className="sound-actions">
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={onPickMp3}
+                        title="Pick an mp3"
+                      >
+                        Upload
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={playAlarmNative}
+                        disabled={!soundPath}
+                        title="Play (Native)"
+                      >
+                        Play
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={stopAlarmNative}
+                        disabled={!soundPath}
+                        title="Stop (Native)"
+                      >
+                        Stop
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={togglePauseResume}
+                        disabled={!soundDataUrl && !soundPath}
+                        title="Pause / Resume"
+                      >
+                        {isSoundPlaying ? "Pause" : "Resume"}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={restartSound}
+                        disabled={!soundDataUrl}
+                        title="Restart"
+                      >
+                        Restart
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={clearSound}
+                        disabled={!soundDataUrl}
+                        title="Clear"
+                      >
+                        Clear
+                      </button>
+                    </div>
+
+                    <div className="sound-slider">
+                      <div className="muted">Volume</div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="3.5"
+                        step="0.05"
+                        value={Number(soundVolume) || 1}
+                        onChange={(e) => setSoundVolume(e.target.value)}
+                      />
+                      <div className="muted">
+                        {Number(soundVolume || 1).toFixed(2)}x
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
+              </div>
+            </div>
+          </header>
+
+          <CreateForm addTodo={addTodo} isLocked={isLocked} tags={tags} />
+
+          <div className="now-bar">
+            <div className="now-bar-left">
+              <span className="now-title">Now</span>{" "}
+              {/* <-- TEMP to match style */}
+            </div>
+
+            <div className="now-bar-right">
+              <span className="remaining-chip">
+                <b>{remainingCount}</b> <span>REMAINING</span>
+              </span>
+
+              {runningLabel && (
+                <span className="running-chip">{runningLabel}</span>
               )}
             </div>
           </div>
-        </header>
 
-        <CreateForm addTodo={addTodo} isLocked={isLocked} tags={tags} />
+          <div className="now-section">
+            <div className="tag-bar">
+              <div className="tag-bar-left">
+                {["All", ...tags].map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`tag-chip ${activeTag === t ? "active" : ""}`}
+                    onClick={() => setActiveTag(t)}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
 
-        <div className="now-bar">
-          <div className="now-bar-left">
-            <span className="now-title">Now</span>{" "}
-            {/* <-- TEMP to match style */}
+              <div className="tag-bar-right">
+                <TagManager
+                  tags={tags}
+                  setTags={setTags}
+                  activeTag={activeTag}
+                  setActiveTag={setActiveTag}
+                  disabled={isLocked}
+                />
+              </div>
+            </div>
+
+            <div className="now-list">
+              {visibleIncomplete.map((todo, index) => {
+                const isActive = todo.id === activeId;
+                const canStart =
+                  !isLocked && visibleIncomplete[0]?.id === todo.id;
+
+                return (
+                  <Todo
+                    key={todo.id}
+                    todo={todo}
+                    order={index + 1}
+                    deleteTodo={deleteTodo}
+                    toggleComplete={toggleComplete}
+                    toggleIsEditing={toggleIsEditing}
+                    editTodo={editTodo}
+                    isLocked={isLocked}
+                    isActive={isActive}
+                    canStart={canStart}
+                    status={status}
+                    onStart={() => {
+                      if (!isActive) return startTodo(todo);
+                      if (status === "running") return pauseActive();
+                      if (status === "paused") return resumeActive();
+                    }}
+                    onPause={pauseActive}
+                    onFinish={() => finishActive(false)}
+                    onPointerDragStart={startPointerDrag}
+                  />
+                );
+              })}
+            </div>
           </div>
 
-          <div className="now-bar-right">
-            <span className="remaining-chip">
-              <b>{remainingCount}</b> <span>REMAINING</span>
-            </span>
+          <div className="completed-panel">
+            <button
+              className="collapse-btn"
+              onClick={() => setShowCompleted((v) => !v)}
+              disabled={visibleCompleted.length === 0}
+              aria-label="Toggle completed"
+            >
+              <span>Completed</span>
+              <span className="muted">
+                {visibleCompleted.length === 0
+                  ? "0"
+                  : `${visibleCompleted.length} ${showCompleted ? "▾" : "▸"}`}
+              </span>
+            </button>
 
-            {runningLabel && (
-              <span className="running-chip">{runningLabel}</span>
+            {showCompleted && visibleCompleted.length > 0 && (
+              <div className="completed-list">
+                {visibleCompleted.map((todo) => (
+                  <Todo
+                    key={todo.id}
+                    todo={todo}
+                    hideOrder
+                    deleteTodo={deleteTodo}
+                    toggleComplete={toggleComplete}
+                    toggleIsEditing={toggleIsEditing}
+                    editTodo={editTodo}
+                    isLocked={isLocked}
+                    isActive={todo.id === activeId}
+                    canStart={false}
+                    status={status}
+                    onStart={() => {}}
+                    onPause={() => {}}
+                    onFinish={() => {}}
+                  />
+                ))}
+              </div>
             )}
           </div>
         </div>
 
-        <div className="now-section">
-          <div className="tag-bar">
-            <div className="tag-bar-left">
-              {["All", ...tags].map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`tag-chip ${activeTag === t ? "active" : ""}`}
-                  onClick={() => setActiveTag(t)}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            <div className="tag-bar-right">
-              <TagManager
-                tags={tags}
-                setTags={setTags}
-                activeTag={activeTag}
-                setActiveTag={setActiveTag}
-                disabled={isLocked}
-              />
-            </div>
-          </div>
-
-          <div className="now-list">
-            {visibleIncomplete.map((todo, index) => {
-              const isActive = todo.id === activeId;
-              const canStart =
-                !isLocked && visibleIncomplete[0]?.id === todo.id;
-
-              return (
-                <Todo
-                  key={todo.id}
-                  todo={todo}
-                  order={index + 1}
-                  deleteTodo={deleteTodo}
-                  toggleComplete={toggleComplete}
-                  toggleIsEditing={toggleIsEditing}
-                  editTodo={editTodo}
-                  isLocked={isLocked}
-                  isActive={isActive}
-                  canStart={canStart}
-                  status={status}
-                  onStart={() => {
-                    if (!isActive) return startTodo(todo);
-                    if (status === "running") return pauseActive();
-                    if (status === "paused") return resumeActive();
-                  }}
-                  onPause={pauseActive}
-                  onFinish={() => finishActive(false)}
-                  onPointerDragStart={startPointerDrag}
-                />
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="completed-panel">
+        <div className="footer-bar">
           <button
-            className="collapse-btn"
-            onClick={() => setShowCompleted((v) => !v)}
-            disabled={visibleCompleted.length === 0}
-            aria-label="Toggle completed"
+            className="btn ghost"
+            disabled={!isLocked || status !== "running"}
+            onClick={pauseActive}
           >
-            <span>Completed</span>
-            <span className="muted">
-              {visibleCompleted.length === 0
-                ? "0"
-                : `${visibleCompleted.length} ${showCompleted ? "▾" : "▸"}`}
-            </span>
+            Pause
           </button>
-
-          {showCompleted && visibleCompleted.length > 0 && (
-            <div className="completed-list">
-              {visibleCompleted.map((todo) => (
-                <Todo
-                  key={todo.id}
-                  todo={todo}
-                  hideOrder
-                  deleteTodo={deleteTodo}
-                  toggleComplete={toggleComplete}
-                  toggleIsEditing={toggleIsEditing}
-                  editTodo={editTodo}
-                  isLocked={isLocked}
-                  isActive={todo.id === activeId}
-                  canStart={false}
-                  status={status}
-                  onStart={() => {}}
-                  onPause={() => {}}
-                  onFinish={() => {}}
-                />
-              ))}
-            </div>
-          )}
+          <button
+            className="btn ghost"
+            disabled={!isLocked || status !== "paused"}
+            onClick={resumeActive}
+          >
+            Resume
+          </button>
+          <button
+            className="btn"
+            disabled={!isLocked}
+            onClick={() => finishActive(false)}
+          >
+            Finish
+          </button>
         </div>
       </div>
-
-      <div className="footer-bar">
-        <button
-          className="btn ghost"
-          disabled={!isLocked || status !== "running"}
-          onClick={pauseActive}
-        >
-          Pause
-        </button>
-        <button
-          className="btn ghost"
-          disabled={!isLocked || status !== "paused"}
-          onClick={resumeActive}
-        >
-          Resume
-        </button>
-        <button
-          className="btn"
-          disabled={!isLocked}
-          onClick={() => finishActive(false)}
-        >
-          Finish
-        </button>
-      </div>
-    </div>
+    </>
   );
 }
 

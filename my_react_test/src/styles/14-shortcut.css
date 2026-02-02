@@ -1,0 +1,83 @@
+.shortcut-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+
+.shortcut-modal {
+  width: min(520px, 94vw);
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--card-border));
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+  padding: 16px;
+  transform: translateY(-40px);
+
+  /* ✅ 强渲染：直接用 accent 做两层叠色 */
+  background: radial-gradient(
+      120% 110% at 18% 0%,
+      color-mix(in srgb, var(--accent) 55%, white),
+      rgba(255, 255, 255, 0.82) 80%,
+      rgba(255, 255, 255, 0.7)
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent) 90%, transparent),
+      transparent 62%
+    ),
+    rgba(255, 255, 255, 0.84);
+
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+}
+
+.shortcut-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.shortcut-title {
+  font-weight: 900;
+  font-size: 18px;
+}
+
+.shortcut-esc {
+  border: 1px solid var(--card-border);
+  background: var(--glass);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.shortcut-hint {
+  color: var(--muted);
+  line-height: 1.35;
+  margin-bottom: 12px;
+}
+
+.shortcut-keybox {
+  border-radius: 14px;
+  border: 1px dashed rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.5);
+  padding: 12px;
+  text-align: center;
+  font-weight: 900;
+  font-size: 20px;
+  margin-bottom: 10px;
+}
+
+.shortcut-rule {
+  color: var(--muted);
+  font-size: 12px;
+}

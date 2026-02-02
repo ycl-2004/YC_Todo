@@ -2,8 +2,12 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::fs;
+use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::Mutex;
+
+use serde::{Deserialize, Serialize};
 
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::{ActivationPolicy, Emitter, Manager, State};
@@ -11,7 +15,280 @@ use tauri::{ActivationPolicy, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_nspopover::{AppExt as _, ToPopoverOptions, WindowExt as _};
 
+use tauri_plugin_global_shortcut::{
+  Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState as ShortcutEventState,
+};
+
 struct AlarmState(Mutex<Option<Child>>);
+
+/// -----------------------------
+/// Shortcut state + persistence
+/// -----------------------------
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ShortcutSpec {
+  meta: bool,
+  shift: bool,
+  alt: bool,
+  ctrl: bool,
+  /// JS KeyboardEvent.code, e.g. "KeyJ", "KeyK", "Digit1"
+  code: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ShortcutConfig {
+  popover: ShortcutSpec,
+  sound: ShortcutSpec,
+}
+
+impl Default for ShortcutConfig {
+  fn default() -> Self {
+    Self {
+      popover: ShortcutSpec {
+        meta: true,
+        shift: true,
+        alt: false,
+        ctrl: false,
+        code: "KeyJ".to_string(),
+      },
+      sound: ShortcutSpec {
+        meta: true,
+        shift: true,
+        alt: false,
+        ctrl: false,
+        code: "KeyK".to_string(),
+      },
+    }
+  }
+}
+
+struct ShortcutConfigState(Mutex<ShortcutConfig>);
+
+
+fn config_file_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+  let dir = app.path().app_config_dir().ok()?;
+  let _ = fs::create_dir_all(&dir);
+  Some(dir.join("yc_todo_shortcuts.json"))
+}
+
+fn load_shortcuts(app: &tauri::AppHandle) -> ShortcutConfig {
+  let Some(p) = config_file_path(app) else {
+    return ShortcutConfig::default();
+  };
+
+  if let Ok(s) = fs::read_to_string(&p) {
+    if let Ok(cfg) = serde_json::from_str::<ShortcutConfig>(&s) {
+      return cfg;
+    }
+  }
+  ShortcutConfig::default()
+}
+
+fn save_shortcuts(app: &tauri::AppHandle, cfg: &ShortcutConfig) {
+  let Some(p) = config_file_path(app) else { return; };
+  if let Ok(s) = serde_json::to_string_pretty(cfg) {
+    let _ = fs::write(p, s);
+  }
+}
+
+fn to_modifiers(spec: &ShortcutSpec) -> Option<Modifiers> {
+  let mut m = Modifiers::empty();
+  if spec.meta { m |= Modifiers::META; }
+  if spec.shift { m |= Modifiers::SHIFT; }
+  if spec.alt { m |= Modifiers::ALT; }
+  if spec.ctrl { m |= Modifiers::CONTROL; }
+
+  if m.is_empty() {
+    return None;
+  }
+  Some(m)
+}
+
+fn code_from_js(code: &str) -> Option<Code> {
+  // 支持：KeyA..KeyZ / Digit0..Digit9（够你现在用）
+  if let Some(ch) = code.strip_prefix("Key") {
+    if ch.len() == 1 {
+      let c = ch.chars().next().unwrap();
+      return match c {
+        'A' => Some(Code::KeyA),
+        'B' => Some(Code::KeyB),
+        'C' => Some(Code::KeyC),
+        'D' => Some(Code::KeyD),
+        'E' => Some(Code::KeyE),
+        'F' => Some(Code::KeyF),
+        'G' => Some(Code::KeyG),
+        'H' => Some(Code::KeyH),
+        'I' => Some(Code::KeyI),
+        'J' => Some(Code::KeyJ),
+        'K' => Some(Code::KeyK),
+        'L' => Some(Code::KeyL),
+        'M' => Some(Code::KeyM),
+        'N' => Some(Code::KeyN),
+        'O' => Some(Code::KeyO),
+        'P' => Some(Code::KeyP),
+        'Q' => Some(Code::KeyQ),
+        'R' => Some(Code::KeyR),
+        'S' => Some(Code::KeyS),
+        'T' => Some(Code::KeyT),
+        'U' => Some(Code::KeyU),
+        'V' => Some(Code::KeyV),
+        'W' => Some(Code::KeyW),
+        'X' => Some(Code::KeyX),
+        'Y' => Some(Code::KeyY),
+        'Z' => Some(Code::KeyZ),
+        _ => None,
+      };
+    }
+  }
+
+  if let Some(d) = code.strip_prefix("Digit") {
+    if d.len() == 1 {
+      return match d.chars().next().unwrap() {
+        '0' => Some(Code::Digit0),
+        '1' => Some(Code::Digit1),
+        '2' => Some(Code::Digit2),
+        '3' => Some(Code::Digit3),
+        '4' => Some(Code::Digit4),
+        '5' => Some(Code::Digit5),
+        '6' => Some(Code::Digit6),
+        '7' => Some(Code::Digit7),
+        '8' => Some(Code::Digit8),
+        '9' => Some(Code::Digit9),
+        _ => None,
+      };
+    }
+  }
+
+  None
+}
+
+fn spec_to_shortcut(spec: &ShortcutSpec) -> Result<Shortcut, String> {
+  let mods = to_modifiers(spec).ok_or("shortcut must include at least one modifier")?;
+  let code = code_from_js(&spec.code).ok_or("unsupported key code (only KeyA..KeyZ / Digit0..9 for now)")?;
+  Ok(Shortcut::new(Some(mods), code))
+}
+
+fn display_from_spec(spec: &ShortcutSpec) -> String {
+  let mut s = String::new();
+  if spec.ctrl { s.push('⌃'); }
+  if spec.alt { s.push('⌥'); }
+  if spec.shift { s.push('⇧'); }
+  if spec.meta { s.push('⌘'); }
+
+  let key = if let Some(k) = spec.code.strip_prefix("Key") {
+    k.to_string()
+  } else if let Some(k) = spec.code.strip_prefix("Digit") {
+    k.to_string()
+  } else {
+    spec.code.clone()
+  };
+
+  s + &key
+}
+
+fn rebuild_tray_menu<R: tauri::Runtime>(
+  app: &tauri::AppHandle<R>,
+  cfg: &ShortcutConfig,
+) -> Result<Menu<R>, tauri::Error> {
+  let version_str = format!("Version {}", env!("CARGO_PKG_VERSION"));
+  let version_item = MenuItem::with_id(app, "version", version_str, false, None::<&str>)?;
+
+  let pop = display_from_spec(&cfg.popover);
+  let snd = display_from_spec(&cfg.sound);
+
+  // ✅ 新增：设置快捷键菜单项（显示当前值）
+  let set_popover = MenuItem::with_id(
+    app,
+    "set_shortcut_popover",
+    format!("Set Shortcut: Popover ({})…", pop),
+    true,
+    None::<&str>,
+  )?;
+  let set_sound = MenuItem::with_id(
+    app,
+    "set_shortcut_sound",
+    format!("Set Shortcut: Sound ({})…", snd),
+    true,
+    None::<&str>,
+  )?;
+
+  // Theme items
+  let theme_system = MenuItem::with_id(app, "theme_system", "Theme: System", true, None::<&str>)?;
+  let theme_light = MenuItem::with_id(app, "theme_light", "Theme: Light", true, None::<&str>)?;
+  let theme_dark = MenuItem::with_id(app, "theme_dark", "Theme: Dark", true, None::<&str>)?;
+
+  // Accent items
+  let accent_pink = MenuItem::with_id(app, "accent_pink", "Accent: Pink", true, None::<&str>)?;
+  let accent_purple = MenuItem::with_id(app, "accent_purple", "Accent: Purple", true, None::<&str>)?;
+  let accent_blue = MenuItem::with_id(app, "accent_blue", "Accent: Blue", true, None::<&str>)?;
+  let accent_gray = MenuItem::with_id(app, "accent_gray", "Accent: Gray", true, None::<&str>)?;
+
+  let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+
+  Menu::with_items(
+    app,
+    &[
+      &version_item,
+      &PredefinedMenuItem::separator(app)?,
+      &set_popover,
+      &set_sound,
+      &PredefinedMenuItem::separator(app)?,
+      &theme_system,
+      &theme_light,
+      &theme_dark,
+      &PredefinedMenuItem::separator(app)?,
+      &accent_pink,
+      &accent_purple,
+      &accent_blue,
+      &accent_gray,
+      &PredefinedMenuItem::separator(app)?,
+      &quit_item,
+    ],
+  )
+}
+
+/// 注册快捷键（会打印 log，但不 panic）
+fn register_shortcuts(app: &tauri::AppHandle, cfg: &ShortcutConfig) {
+  let gs = app.global_shortcut();
+
+  let pop = spec_to_shortcut(&cfg.popover);
+  let snd = spec_to_shortcut(&cfg.sound);
+
+  if let Ok(sc) = pop {
+    if let Err(e) = gs.register(sc) {
+      eprintln!("❌ register popover shortcut failed: {e}");
+    } else {
+      eprintln!("✅ registered popover shortcut");
+    }
+  } else {
+    eprintln!("❌ popover shortcut invalid");
+  }
+
+  if let Ok(sc) = snd {
+    if let Err(e) = gs.register(sc) {
+      eprintln!("❌ register sound shortcut failed: {e}");
+    } else {
+      eprintln!("✅ registered sound shortcut");
+    }
+  } else {
+    eprintln!("❌ sound shortcut invalid");
+  }
+}
+
+/// 取消注册旧快捷键（忽略错误）
+fn unregister_shortcuts(app: &tauri::AppHandle, cfg: &ShortcutConfig) {
+  let gs = app.global_shortcut();
+
+  if let Ok(sc) = spec_to_shortcut(&cfg.popover) {
+    let _ = gs.unregister(sc);
+  }
+  if let Ok(sc) = spec_to_shortcut(&cfg.sound) {
+    let _ = gs.unregister(sc);
+  }
+}
+
+/// -----------------------------
+/// Commands
+/// -----------------------------
 
 /// ✅ Open system file picker safely in menubar/popover mode
 /// Returns: Some(path) or None
@@ -21,7 +298,6 @@ async fn pick_audio(app: tauri::AppHandle) -> Result<Option<String>, String> {
 
   let app_ui = app.clone();
   let _ = app.run_on_main_thread(move || {
-    // Hide popover first so OpenPanel won't attach to popover
     if app_ui.is_popover_shown() {
       app_ui.hide_popover();
     }
@@ -34,15 +310,12 @@ async fn pick_audio(app: tauri::AppHandle) -> Result<Option<String>, String> {
       .pick_file(move |path_opt| {
         let picked = path_opt.map(|p| p.to_string());
 
-        // Restore menubar state (still on main thread)
         let app_restore = app_after.clone();
         let _ = app_after.run_on_main_thread(move || {
           #[cfg(target_os = "macos")]
           {
             let _ = app_restore.set_activation_policy(ActivationPolicy::Accessory);
           }
-
-          // ✅ UI action on main thread
           app_restore.show_popover();
         });
 
@@ -58,21 +331,19 @@ async fn pick_audio(app: tauri::AppHandle) -> Result<Option<String>, String> {
 }
 
 /// ✅ Background-safe alarm playback (macOS)
-/// Uses system `afplay` so it works even when WebView audio is suspended.
 #[tauri::command]
 fn play_alarm(state: State<AlarmState>, path: String, volume: f32) -> Result<(), String> {
-  // 先停掉上一個 alarm（避免重疊播放）
   {
     let mut guard = state
       .0
       .lock()
       .map_err(|_| "Alarm mutex poisoned".to_string())?;
+
     if let Some(mut child) = guard.take() {
       let _ = child.kill();
     }
   }
 
-  // afplay -v 需要 0..1
   let vol = volume.clamp(0.0, 1.0);
 
   let child = Command::new("afplay")
@@ -91,12 +362,10 @@ fn play_alarm(state: State<AlarmState>, path: String, volume: f32) -> Result<(),
   Ok(())
 }
 
+
 #[tauri::command]
 fn stop_alarm(state: State<AlarmState>) -> Result<(), String> {
-  let mut guard = state
-    .0
-    .lock()
-    .map_err(|_| "Alarm mutex poisoned".to_string())?;
+  let mut guard = state.0.lock().map_err(|_| "Alarm mutex poisoned".to_string())?;
   if let Some(mut child) = guard.take() {
     let _ = child.kill();
   }
@@ -114,6 +383,83 @@ fn hide_popover_cmd(app: tauri::AppHandle) -> Result<(), String> {
   Ok(())
 }
 
+/// ✅ 前端录完快捷键后调用：注册并持久化
+#[tauri::command]
+fn set_shortcut(
+  app: tauri::AppHandle,
+  state: State<ShortcutConfigState>,
+  target: String, // "sound" | "popover"
+  code: String,
+  meta: bool,
+  shift: bool,
+  alt: bool,
+  ctrl: bool,
+) -> Result<(), String> {
+  if target != "sound" && target != "popover" {
+    return Err("invalid target".to_string());
+  }
+
+  let new_spec = ShortcutSpec { meta, shift, alt, ctrl, code };
+
+  // 校验：必须至少一个 modifier + 支持 code
+  let new_sc = spec_to_shortcut(&new_spec)?;
+
+  // 取旧配置
+  let mut guard = state.0.lock().map_err(|_| "shortcut mutex poisoned".to_string())?;
+  let mut cfg = guard.clone();
+
+  // 冲突校验：两个动作不能用同一个 shortcut
+  let other_spec = if target == "popover" { &cfg.sound } else { &cfg.popover };
+  if spec_to_shortcut(other_spec).ok().as_ref() == Some(&new_sc) {
+    return Err("this shortcut is already used by the other action".to_string());
+  }
+
+  // 先取消注册旧的（只取消 target 的旧值）
+  let gs = app.global_shortcut();
+  if target == "popover" {
+    if let Ok(old_sc) = spec_to_shortcut(&cfg.popover) {
+      let _ = gs.unregister(old_sc);
+    }
+    cfg.popover = new_spec;
+  } else {
+    if let Ok(old_sc) = spec_to_shortcut(&cfg.sound) {
+      let _ = gs.unregister(old_sc);
+    }
+    cfg.sound = new_spec;
+  }
+
+  // 注册新的
+  gs.register(new_sc).map_err(|e| format!("register new shortcut failed: {e}"))?;
+
+  // 持久化 + 更新 state
+  save_shortcuts(&app, &cfg);
+  *guard = cfg.clone();
+
+  // 更新 tray 菜单显示
+  if let Some(tray) = app.tray_by_id("main") {
+    if let Ok(menu) = rebuild_tray_menu(&app, &cfg) {
+      let _ = tray.set_menu(Some(menu));
+    }
+  }
+
+  // 回传给前端（用来关 overlay / toast）
+  let display = if target == "popover" {
+    display_from_spec(&cfg.popover)
+  } else {
+    display_from_spec(&cfg.sound)
+  };
+
+  let _ = app.emit(
+    "ui://shortcut-updated",
+    serde_json::json!({ "target": target, "display": display }),
+  );
+
+  Ok(())
+}
+
+/// -----------------------------
+/// Main entry
+/// -----------------------------
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -121,42 +467,35 @@ pub fn run() {
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_nspopover::init())
 
-    // ✅ Global shortcut plugin registered here (most stable)
+    // ✅ Global shortcut plugin
     .plugin(
       tauri_plugin_global_shortcut::Builder::new()
         .with_handler(|app, shortcut, event| {
-          use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
-    
-          if event.state() != ShortcutState::Pressed {
+          if event.state() != ShortcutEventState::Pressed {
             return;
           }
-    
-          // 目标快捷键（本地创建没问题）
-          let toggle_popover = Shortcut::new(
-            Some(Modifiers::META | Modifiers::SHIFT),
-            Code::KeyJ,
-          );
-    
-          let toggle_sound = Shortcut::new(
-            Some(Modifiers::META | Modifiers::SHIFT),
-            Code::KeyK,
-          );
-    
-          // ✅ 先算成 bool，避免把 shortcut 引用带进 'static closure
-          let is_popover = shortcut == &toggle_popover;
-          let is_sound = shortcut == &toggle_sound;
-    
-          if !is_popover && !is_sound {
+
+          // ✅ 动态读取当前配置（用户可改）
+          let st = app.state::<ShortcutConfigState>();
+
+          let cfg = st.0.lock().map(|g| g.clone()).unwrap_or_default();
+
+
+          let pop = spec_to_shortcut(&cfg.popover).ok();
+          let snd = spec_to_shortcut(&cfg.sound).ok();
+
+          let is_pop = pop.as_ref().map(|s| shortcut == s).unwrap_or(false);
+          let is_snd = snd.as_ref().map(|s| shortcut == s).unwrap_or(false);
+
+          if !is_pop && !is_snd {
             return;
           }
-    
-          // ✅ 关键：拿到 OWNED 的 handle（不要把 &AppHandle app move 进去）
+
           let h = app.app_handle().clone();
-    
-          // ✅ 先在 main thread 做 show/hide（只捕获 owned handle）
           let h_ui = h.clone();
+
           let _ = h.run_on_main_thread(move || {
-            if is_popover {
+            if is_pop {
               if !h_ui.is_popover_shown() {
                 h_ui.show_popover();
               } else {
@@ -164,16 +503,15 @@ pub fn run() {
               }
               return;
             }
-    
-            if is_sound {
+
+            if is_snd {
               if !h_ui.is_popover_shown() {
                 h_ui.show_popover();
               }
             }
           });
-    
-          // ✅ Sound 需要延迟 emit，避免 popover/webview 还没 ready
-          if is_sound {
+
+          if is_snd {
             let h_emit = h.clone();
             tauri::async_runtime::spawn(async move {
               std::thread::sleep(std::time::Duration::from_millis(80));
@@ -183,15 +521,19 @@ pub fn run() {
         })
         .build(),
     )
-    
 
     .manage(AlarmState(Mutex::new(None)))
+    .manage(ShortcutConfigState(Mutex::new(ShortcutConfig::default())))
+
+
     .invoke_handler(tauri::generate_handler![
       pick_audio,
       play_alarm,
       stop_alarm,
-      hide_popover_cmd
+      hide_popover_cmd,
+      set_shortcut
     ])
+
     .setup(|app| {
       eprintln!("✅ setup start");
 
@@ -210,15 +552,11 @@ pub fn run() {
         }
       };
 
-      eprintln!("✅ got window");
-
       window.to_popover(ToPopoverOptions {
         is_fullsize_content: true,
       });
 
-      eprintln!("✅ converted to popover");
-
-      // ✅ 防止主視窗被 close 導致 App 直接退出：close => hide popover
+      // ✅ 防止 close 退出：close => hide popover
       let handle_for_close = app.handle().clone();
       window.on_window_event(move |event| {
         if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -226,7 +564,6 @@ pub fn run() {
 
           let h = handle_for_close.clone();
           let h_ui = h.clone();
-
           let _ = h.run_on_main_thread(move || {
             if h_ui.is_popover_shown() {
               h_ui.hide_popover();
@@ -235,7 +572,7 @@ pub fn run() {
         }
       });
 
-      // tray (created by tauri.conf.json)
+      // tray
       let tray = match app.tray_by_id("main") {
         Some(t) => t,
         None => {
@@ -244,83 +581,83 @@ pub fn run() {
         }
       };
 
-      eprintln!("✅ got tray");
+      // ✅ load shortcuts from disk -> set state -> register
+      let loaded = load_shortcuts(&app.handle());
+      {
+        {
+          let st = app.state::<ShortcutConfigState>();
+          let lock_result = st.0.lock();
+          if let Ok(mut g) = lock_result {
+            *g = loaded.clone();
+          }
+        }
+        
+        
+      }
 
-      // ---------- Menu items ----------
-      let version_str = format!("Version {}", env!("CARGO_PKG_VERSION"));
-      let version_item =
-        MenuItem::with_id(app, "version", version_str, false, None::<&str>)?;
-      let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+      // 先确保不会重复注册（开发热重载时）
+      unregister_shortcuts(&app.handle(), &loaded);
+      register_shortcuts(&app.handle(), &loaded);
 
-      // Theme items (flat)
-      let theme_system =
-        MenuItem::with_id(app, "theme_system", "Theme: System", true, None::<&str>)?;
-      let theme_light =
-        MenuItem::with_id(app, "theme_light", "Theme: Light", true, None::<&str>)?;
-      let theme_dark =
-        MenuItem::with_id(app, "theme_dark", "Theme: Dark", true, None::<&str>)?;
-
-      // Accent items (flat)
-      let accent_pink =
-        MenuItem::with_id(app, "accent_pink", "Accent: Pink", true, None::<&str>)?;
-      let accent_purple =
-        MenuItem::with_id(app, "accent_purple", "Accent: Purple", true, None::<&str>)?;
-      let accent_blue =
-        MenuItem::with_id(app, "accent_blue", "Accent: Blue", true, None::<&str>)?;
-      let accent_gray =
-        MenuItem::with_id(app, "accent_gray", "Accent: Gray", true, None::<&str>)?;
-
-      // Build menu
-      let menu = Menu::with_items(
-        app,
-        &[
-          &version_item,
-          &PredefinedMenuItem::separator(app)?,
-          &theme_system,
-          &theme_light,
-          &theme_dark,
-          &PredefinedMenuItem::separator(app)?,
-          &accent_pink,
-          &accent_purple,
-          &accent_blue,
-          &accent_gray,
-          &PredefinedMenuItem::separator(app)?,
-          &quit_item,
-        ],
-      )?;
-
+      // build menu（包含快捷键设置项）
+      let menu = rebuild_tray_menu(&app.handle(), &loaded)?;
       tray.set_menu(Some(menu))?;
       tray.set_show_menu_on_left_click(false)?;
-
-      eprintln!("✅ menu built");
 
       // ---------- Menu events ----------
       let app_handle_for_menu = app.handle().clone();
       tray.on_menu_event(move |_tray, event| match event.id().as_ref() {
         "quit" => app_handle_for_menu.exit(0),
 
-        "theme_system" => {
-          let _ = app_handle_for_menu.emit("settings://theme", "system");
-        }
-        "theme_light" => {
-          let _ = app_handle_for_menu.emit("settings://theme", "light");
-        }
-        "theme_dark" => {
-          let _ = app_handle_for_menu.emit("settings://theme", "dark");
+        "set_shortcut_popover" => {
+          let outer = app_handle_for_menu.clone();
+          let inner = outer.clone(); // ✅ 给 closure 用
+
+          let _ = outer.run_on_main_thread(move || {
+            if !inner.is_popover_shown() {
+              inner.show_popover();
+            }
+          });
+
+          let emit_handle = app_handle_for_menu.clone();
+          tauri::async_runtime::spawn(async move {
+            std::thread::sleep(std::time::Duration::from_millis(60));
+            let _ = emit_handle.emit(
+              "ui://capture-shortcut",
+              serde_json::json!({ "target": "popover" }),
+            );
+          });
         }
 
-        "accent_pink" => {
-          let _ = app_handle_for_menu.emit("settings://accent", "#d4a5c1");
+        "set_shortcut_sound" => {
+          let outer = app_handle_for_menu.clone();
+          let inner = outer.clone();
+
+          let _ = outer.run_on_main_thread(move || {
+            if !inner.is_popover_shown() {
+              inner.show_popover();
+            }
+          });
+
+          let emit_handle = app_handle_for_menu.clone();
+          tauri::async_runtime::spawn(async move {
+            std::thread::sleep(std::time::Duration::from_millis(60));
+            let _ = emit_handle.emit(
+              "ui://capture-shortcut",
+              serde_json::json!({ "target": "sound" }),
+            );
+          });
         }
-        "accent_purple" => {
-          let _ = app_handle_for_menu.emit("settings://accent", "#8e44ad");
-        }
-        "accent_blue" => {
-          let _ = app_handle_for_menu.emit("settings://accent", "#2d7ff9");
-        }
-        "accent_gray" => {
-          let _ = app_handle_for_menu.emit("settings://accent", "#4b4b4b");
-        }
+
+
+        "theme_system" => { let _ = app_handle_for_menu.emit("settings://theme", "system"); }
+        "theme_light" => { let _ = app_handle_for_menu.emit("settings://theme", "light"); }
+        "theme_dark" => { let _ = app_handle_for_menu.emit("settings://theme", "dark"); }
+
+        "accent_pink" => { let _ = app_handle_for_menu.emit("settings://accent", "#d4a5c1"); }
+        "accent_purple" => { let _ = app_handle_for_menu.emit("settings://accent", "#8e44ad"); }
+        "accent_blue" => { let _ = app_handle_for_menu.emit("settings://accent", "#2d7ff9"); }
+        "accent_gray" => { let _ = app_handle_for_menu.emit("settings://accent", "#4b4b4b"); }
 
         _ => {}
       });
@@ -328,18 +665,12 @@ pub fn run() {
       // ---------- Left click toggles popover ----------
       let handle = app.handle().clone();
       tray.on_tray_icon_event(move |_, event| {
-        if let tauri::tray::TrayIconEvent::Click {
-          button,
-          button_state,
-          ..
-        } = event
-        {
+        if let tauri::tray::TrayIconEvent::Click { button, button_state, .. } = event {
           if button == tauri::tray::MouseButton::Left
             && button_state == tauri::tray::MouseButtonState::Up
           {
             let h = handle.clone();
             let h_ui = h.clone();
-
             let _ = h.run_on_main_thread(move || {
               if !h_ui.is_popover_shown() {
                 h_ui.show_popover();
@@ -351,35 +682,7 @@ pub fn run() {
         }
       });
 
-      // ---------- Register global shortcuts (macOS) ----------
-      // (Plugin is already installed in Builder above; setup only registers keys)
-      #[cfg(target_os = "macos")]
-      {
-        use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
-
-        let gs = app.handle().global_shortcut();
-
-        let toggle_popover =
-          Shortcut::new(Some(Modifiers::META | Modifiers::SHIFT), Code::KeyJ);
-        let toggle_sound =
-          Shortcut::new(Some(Modifiers::META | Modifiers::SHIFT), Code::KeyK);
-
-        // ignore error if already registered during hot reload
-        if let Err(e) = gs.register(toggle_popover) {
-          eprintln!("❌ register ⌘⇧J failed: {e}");
-        } else {
-          eprintln!("✅ registered ⌘⇧J");
-        }
-        
-        if let Err(e) = gs.register(toggle_sound) {
-          eprintln!("❌ register ⌘⇧K failed: {e}");
-        } else {
-          eprintln!("✅ registered ⌘⇧K");
-        }
-        
-      }
-
-      // ✅ 首次啟動：延遲一下再彈出 popover（避免使用者以為閃退）
+      // ✅ 首次啟動：延遲一下再彈出 popover
       let h = app.handle().clone();
       tauri::async_runtime::spawn_blocking(move || {
         std::thread::sleep(std::time::Duration::from_millis(300));
