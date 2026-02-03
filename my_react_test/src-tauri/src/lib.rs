@@ -484,12 +484,6 @@ fn set_shortcut(
   used.push(spec_to_shortcut(&cfg.sound).ok());
   used.push(spec_to_shortcut(&cfg.notif_mode).ok());
 
-  for u in used.into_iter().flatten() {
-    // 允许你“改回自己原本那个”，所以先跳过 target 自己的旧值
-    // 简单做法：后面会先 unregister 旧的再 register 新的，
-    // 这里我们只要确保不是跟“其它两个”冲突即可：
-  }
-
   let conflict = match target.as_str() {
     "popover" => {
       spec_to_shortcut(&cfg.sound).ok().as_ref() == Some(&new_sc)
@@ -682,6 +676,18 @@ pub fn run() {
       window.to_popover(ToPopoverOptions {
         is_fullsize_content: true,
       });
+
+      #[cfg(target_os = "macos")]
+      {
+        use tauri_plugin_nspopover::AppExt as _;
+        use objc2_app_kit::NSPopoverBehavior;
+
+        let handle = app.handle();
+        let popover = handle.ns_popover();
+        popover.setBehavior(NSPopoverBehavior::Transient); // ✅ 默认：点外面就自动收起
+      }
+
+
       // ✅ 防止 close 退出：close => hide popover
       let handle_for_close = app.handle().clone();
       window.on_window_event(move |event| {
