@@ -12,6 +12,12 @@
   --ink: rgba(20, 18, 18, 0.92);
   --muted: rgba(20, 18, 18, 0.6);
 
+  /*  弹窗text color*/
+  --alarm-ink: rgba(20, 18, 18, 0.92);
+  --alarm-muted: rgba(20, 18, 18, 0.62);
+  --overlay-ink: rgba(20, 18, 18, 0.92);
+  --overlay-muted: rgba(20, 18, 18, 0.62);
+
   /* Borders */
   --card-border: rgba(255, 255, 255, 0.42);
   --stroke: rgba(0, 0, 0, 0.11);
@@ -73,6 +79,12 @@
   --ink: rgba(245, 243, 245, 0.92);
   --muted: rgba(245, 243, 245, 0.62);
 
+  /*  弹窗text color*/
+  --alarm-ink: rgba(20, 18, 18, 0.92);
+  --alarm-muted: rgba(20, 18, 18, 0.62);
+  --overlay-ink: rgba(20, 18, 18, 0.92);
+  --overlay-muted: rgba(20, 18, 18, 0.62);
+
   --card-border: rgba(255, 255, 255, 0.14);
   --stroke: rgba(255, 255, 255, 0.18);
 
@@ -89,8 +101,8 @@
   --bg2: color-mix(in srgb, var(--base2) 76%, var(--accent) 24%);
 
   /* ✅ Dark glass 仍然奶霧（比較亮、比較柔） */
-  --glass: color-mix(in srgb, var(--bg1) 58%, rgba(255, 255, 255, 0.12));
-  --glass-strong: color-mix(in srgb, var(--bg1) 72%, rgba(255, 255, 255, 0.18));
+  --glass: color-mix(in srgb, var(--bg1) 78%, rgba(0, 0, 0, 0.22));
+  --glass-strong: color-mix(in srgb, var(--bg1) 86%, rgba(0, 0, 0, 0.28));
 
   --surface-1: var(--glass);
   --surface-2: color-mix(in srgb, var(--glass) 78%, transparent);

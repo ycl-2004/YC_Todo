@@ -38,7 +38,6 @@ const formatShortcutDisplay = ({ meta, shift, alt, ctrl }, code) => {
   if (shift) parts.push("⇧");
   if (meta) parts.push("⌘");
 
-  // code: "KeyK" / "KeyJ" / "Digit1" etc.
   let keyPart = code || "";
   if (typeof keyPart === "string" && keyPart.startsWith("Key")) {
     keyPart = keyPart.replace("Key", "");
@@ -50,7 +49,6 @@ const formatShortcutDisplay = ({ meta, shift, alt, ctrl }, code) => {
 };
 
 const keyEventToShortcut = (e) => {
-  // 只做组合键（必须至少一个 modifier）
   const mods = {
     meta: e.metaKey,
     shift: e.shiftKey,
@@ -61,13 +59,12 @@ const keyEventToShortcut = (e) => {
   const hasMod = mods.meta || mods.shift || mods.alt || mods.ctrl;
   if (!hasMod) return null;
 
-  // 过滤纯 modifier
   const k = e.key;
   if (k === "Meta" || k === "Shift" || k === "Alt" || k === "Control") {
     return null;
   }
 
-  const code = e.code; // like "KeyK"
+  const code = e.code;
   if (!code) return null;
 
   const display = formatShortcutDisplay(mods, code);
@@ -97,7 +94,7 @@ function TodoWrapper() {
 
   const [themeMode, setThemeMode] = useState(() => {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    return raw ? safeParse(raw, null)?.themeMode ?? "system" : "system"; // "light" | "dark" | "system"
+    return raw ? safeParse(raw, null)?.themeMode ?? "system" : "system";
   });
 
   const [title, setTitle] = useState(() => {
@@ -105,18 +102,16 @@ function TodoWrapper() {
   });
 
   const [subtitle, setSubtitle] = useState(() => {
-    return localStorage.getItem(`${TITLE_KEY}_subtitle`) || "想她了就學習吧";
+    return localStorage.getItem(`${TITLE_KEY}_subtitle`) || "记录个小生活";
   });
 
   const [editing, setEditing] = useState(null);
-  // "title" | "subtitle" | null
 
   const [todos, setTodos] = useState(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     const data = raw ? safeParse(raw, null) : null;
     if (data?.todos?.length) return data.todos;
 
-    // fallback seed
     return [
       {
         content: "Welcome to YC Todo",
@@ -155,7 +150,7 @@ function TodoWrapper() {
   const [status, setStatus] = useState(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     const data = raw ? safeParse(raw, null) : null;
-    return data?.timer?.status ?? "idle"; // idle | running | paused
+    return data?.timer?.status ?? "idle";
   });
 
   const [remainingSec, setRemainingSec] = useState(() => {
@@ -164,7 +159,7 @@ function TodoWrapper() {
     return data?.timer?.remainingSec ?? 0;
   });
 
-  const endAtRef = useRef(null); // number | null
+  const endAtRef = useRef(null);
 
   const [showCompleted, setShowCompleted] = useState(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -304,6 +299,34 @@ function TodoWrapper() {
   const nextTodoToStart = visibleIncomplete[0] || null;
 
   // -----------------------------
+  // Notification mode (NEW)
+  // -----------------------------
+  // "sound" = 播 mp3 / native alarm（原本行為）
+  // "quiet" = 不播音效，時間到只顯示 overlay（你要的 📢）
+  const [notificationMode, setNotificationMode] = useState(() => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const data = raw ? safeParse(raw, null) : null;
+    return data?.ui?.notificationMode ?? "sound";
+  });
+
+  const [showNotifyPanel, setShowNotifyPanel] = useState(false);
+
+  // Quiet overlay (NEW)
+  const [quietOverlayOpen, setQuietOverlayOpen] = useState(false);
+  const [quietOverlayText, setQuietOverlayText] = useState("");
+
+  const showAppAndFocusBestEffort = async () => {
+    try {
+      await invoke("show_popover_cmd"); // ✅ 关键：让 menubar popover 真正弹出来
+    } catch (e) {
+      console.warn("show_popover_cmd failed", e);
+    }
+    try {
+      window.focus();
+    } catch {}
+  };
+
+  // -----------------------------
   // Sound settings (mp3 alarm)
   // -----------------------------
   const [soundDataUrl, setSoundDataUrl] = useState(null);
@@ -323,24 +346,10 @@ function TodoWrapper() {
   const [soundVolume, setSoundVolume] = useState(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     const data = raw ? safeParse(raw, null) : null;
-    return data?.ui?.sound?.volume ?? 1; // 0..3.5
+    return data?.ui?.sound?.volume ?? 1;
   });
 
-  const [showSoundPanel, setShowSoundPanel] = useState(false);
-
-  // -----------------------------
-  // Shortcut capture overlay (for user custom shortcut)
-  // -----------------------------
-  const [shortcutCapture, setShortcutCapture] = useState({
-    open: false,
-    target: null, // "sound" | "popover" | null
-    hint: "",
-  });
-
-  const [pendingShortcut, setPendingShortcut] = useState(null);
-  // { mods: {meta,shift,alt,ctrl}, code: "KeyK", display: "⌘⇧K" }
-
-  const [isNativePlaying, setIsNativePlaying] = useState(false); // ✅ NEW
+  const [isNativePlaying, setIsNativePlaying] = useState(false);
   const nativeRestartTimerRef = useRef(null);
 
   const audioRef = useRef(null);
@@ -350,68 +359,73 @@ function TodoWrapper() {
   const gainRef = useRef(null);
   const sourceRef = useRef(null);
 
-  // click outside close
-  const soundPanelWrapRef = useRef(null);
+  // click outside close (UPDATED: Notify panel)
+  const notifyPanelWrapRef = useRef(null);
   useEffect(() => {
     const onDown = async (e) => {
-      if (!showSoundPanel) return;
-      if (!soundPanelWrapRef.current) return;
-      if (soundPanelWrapRef.current.contains(e.target)) return;
+      if (!showNotifyPanel) return;
+      if (!notifyPanelWrapRef.current) return;
+      if (notifyPanelWrapRef.current.contains(e.target)) return;
 
-      setShowSoundPanel(false);
+      setShowNotifyPanel(false);
 
-      // ✅ stop BOTH preview(web) and native
+      // 你關 panel 時，順便把 preview 停掉（避免一直響）
       stopSound();
       await stopAlarmNative();
     };
 
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-    // include functions used inside if eslint complains
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showSoundPanel, soundPath]);
+  }, [showNotifyPanel, soundPath]);
+
+  // Quiet overlay: Esc 關閉
+  useEffect(() => {
+    if (!quietOverlayOpen) return;
+
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setQuietOverlayOpen(false);
+    };
+
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [quietOverlayOpen]);
 
   const syncAudioState = () => {
     const a = audioRef.current;
     if (!a) return;
     setIsSoundPlaying(!a.paused && !a.ended);
   };
-  // ✅ 重建整個音訊鏈（Audio + AudioContext + Gain）
+
   const rebuildAudioGraph = async () => {
-    // 保留舊的播放資訊（如果有）
     const old = audioRef.current;
     const oldSrc = old?.src || "";
     const oldTime = old?.currentTime || 0;
     const wasPlaying = old ? !old.paused && !old.ended : false;
 
-    // 先停掉舊的
     try {
       old?.pause();
     } catch {}
 
-    // ⚠️ 同一個 <audio> 不能 createMediaElementSource 第二次
-    // 所以「重建 ctx」時，一定也要「重建 audio element」
     audioRef.current = new Audio();
     const a = audioRef.current;
     a.volume = 1;
 
-    // 重新塞回 src
     if (oldSrc) a.src = oldSrc;
     try {
       a.currentTime = oldTime;
     } catch {}
 
-    // 關掉舊 ctx（如果還活著）
     try {
       await audioCtxRef.current?.close?.();
     } catch {}
 
-    // 清掉舊節點
     audioCtxRef.current = null;
     sourceRef.current = null;
     gainRef.current = null;
 
-    // 建新 ctx + gain + source
     const Ctx = window.AudioContext || window.webkitAudioContext;
     const ctx = new Ctx();
     audioCtxRef.current = ctx;
@@ -426,7 +440,6 @@ function TodoWrapper() {
     srcNode.connect(gain);
     gain.connect(ctx.destination);
 
-    // 嘗試恢復播放狀態
     if (wasPlaying) {
       try {
         const p = a.play();
@@ -438,15 +451,12 @@ function TodoWrapper() {
     return a;
   };
 
-  // ✅ 確保 audio 在背景回來後仍可發聲（resume / 必要時重建）
   const ensureAudioAlive = async () => {
-    // audio 一定要存在
     if (!audioRef.current) {
       audioRef.current = new Audio();
       audioRef.current.volume = 1;
     }
 
-    // ctx 不存在 → 建立一次
     if (!audioCtxRef.current) {
       await rebuildAudioGraph();
       return audioRef.current;
@@ -454,30 +464,25 @@ function TodoWrapper() {
 
     const ctx = audioCtxRef.current;
 
-    // ctx 被關/壞掉 → 重建
     if (ctx.state === "closed") {
       await rebuildAudioGraph();
       return audioRef.current;
     }
 
-    // 背景常見：ctx 會變 suspended → resume
     if (ctx.state === "suspended") {
       try {
         await ctx.resume();
       } catch {
-        // resume 失敗就重建（最穩）
         await rebuildAudioGraph();
         return audioRef.current;
       }
     }
 
-    // gain / source 不見了（偶發）→ 重建
     if (!gainRef.current || !sourceRef.current) {
       await rebuildAudioGraph();
       return audioRef.current;
     }
 
-    // 保險：HTML audio 音量固定 1
     audioRef.current.volume = 1;
     return audioRef.current;
   };
@@ -502,7 +507,7 @@ function TodoWrapper() {
       await playAlarmNativeRaw(soundPath, vol01);
       setIsNativePlaying(true);
       return true;
-    } catch (e) {
+    } catch {
       setIsNativePlaying(false);
       return false;
     }
@@ -513,7 +518,7 @@ function TodoWrapper() {
       await stopAlarmNativeRaw();
       setIsNativePlaying(false);
       return true;
-    } catch (e) {
+    } catch {
       return false;
     }
   };
@@ -524,8 +529,6 @@ function TodoWrapper() {
     try {
       const a = await ensureAudioAlive();
 
-      // ✅ 如果 AudioContext 沒在 running，就代表「可能會看起來播放但沒聲音」
-      // 這時直接回 false，讓通知 beep 當保險
       const ctx = audioCtxRef.current;
       if (ctx && ctx.state !== "running") {
         try {
@@ -559,14 +562,11 @@ function TodoWrapper() {
     }
   };
 
-  // ✅ App 從背景回來時，強制喚醒 AudioContext（避免「看起來在播但沒聲音」）
   useEffect(() => {
     const wake = async () => {
-      // 只要有選音樂，就嘗試喚醒
       if (!soundDataUrl) return;
       try {
         await ensureAudioAlive();
-        // 如果音樂其實正在播（但 ctx 被 suspend），resume 後通常會回來
         syncAudioState();
       } catch {}
     };
@@ -586,76 +586,6 @@ function TodoWrapper() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [soundDataUrl, soundVolume]);
 
-  const playSoundNow = async () => {
-    try {
-      // ✅ Case 1: 沒有 dataUrl 但有 path → 先從檔案重建 blob url 再播
-      if (!soundDataUrl && soundPath) {
-        try {
-          // 先把舊的 blob url revoke（避免 leak）
-          revokeUrlIfNeeded(soundDataUrl);
-
-          const bytes = await readFile(soundPath);
-          const uint8 =
-            bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-          const blob = new Blob([uint8], { type: "audio/mpeg" });
-          const url = URL.createObjectURL(blob);
-
-          // 存回 state（之後 UI 會顯示 Selected / Play 可用）
-          setSoundDataUrl(url);
-
-          const a = await ensureAudioAlive();
-
-          // 設定音量（用 gain）
-          if (gainRef.current) {
-            gainRef.current.gain.value = Number(soundVolume) || 1;
-          }
-
-          // ✅ 直接用新的 url 播放
-          a.pause();
-          a.currentTime = 0;
-          a.src = url;
-
-          const p = a.play();
-          if (p && typeof p.then === "function") await p;
-
-          syncAudioState();
-          return;
-        } catch (e) {
-          console.error("[sound] rebuild blob from path failed:", e);
-          alert("Play failed (rebuild from path): " + String(e));
-          return;
-        }
-      }
-
-      // ✅ Case 2: 沒 dataUrl 也沒 path → 無法播放
-      if (!soundDataUrl) return;
-
-      // ✅ 正常播放流程：用現有 soundDataUrl
-      const a = await ensureAudioAlive();
-
-      if (a.src !== soundDataUrl) a.src = soundDataUrl;
-
-      if (gainRef.current) {
-        gainRef.current.gain.value = Number(soundVolume) || 1;
-      }
-
-      // paused -> resume, playing -> restart
-      if (a.paused) {
-        const p = a.play();
-        if (p && typeof p.then === "function") await p;
-      } else {
-        a.currentTime = 0;
-        const p = a.play();
-        if (p && typeof p.then === "function") await p;
-      }
-
-      syncAudioState();
-    } catch (e) {
-      console.error("[sound] playSoundNow failed:", e);
-      alert("Play failed: " + String(e));
-    }
-  };
-
   const togglePauseResume = async () => {
     const a = audioRef.current;
     if (!a) return;
@@ -667,7 +597,6 @@ function TodoWrapper() {
         return;
       }
 
-      // resume
       await ensureAudioAlive();
       if (gainRef.current)
         gainRef.current.gain.value = Number(soundVolume) || 1;
@@ -712,6 +641,16 @@ function TodoWrapper() {
     syncAudioState();
   };
 
+  const closeNotifyPanel = async () => {
+    setShowNotifyPanel(false);
+
+    // 关掉任何 preview / native alarm
+    stopSound();
+    try {
+      await stopAlarmNative();
+    } catch {}
+  };
+
   const revokeUrlIfNeeded = (url) => {
     try {
       if (url && typeof url === "string" && url.startsWith("blob:")) {
@@ -725,11 +664,9 @@ function TodoWrapper() {
       const path = await invoke("pick_audio");
       if (!path) return;
 
-      // ✅ revoke old url to avoid leaks
       revokeUrlIfNeeded(soundDataUrl);
 
       setSoundPath(path);
-
       setSoundName(path.split("/").pop() || "sound");
 
       const bytes = await readFile(path);
@@ -750,13 +687,12 @@ function TodoWrapper() {
     setSoundName("");
     setSoundPath("");
 
-    stopSound(); // web audio stop
+    stopSound();
     try {
       await stopAlarmNative();
     } catch {}
   };
 
-  // keep isSoundPlaying state in sync
   useEffect(() => {
     let a;
     const onPlay = () => syncAudioState();
@@ -779,7 +715,6 @@ function TodoWrapper() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // when volume changes, update gain
   useEffect(() => {
     if (gainRef.current) {
       const v = Number(soundVolume);
@@ -826,8 +761,6 @@ function TodoWrapper() {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (AudioCtx) {
         const ctx = new AudioCtx();
-
-        // ✅ 背景/省電狀態下可能 suspended，先嘗試喚醒
         try {
           if (ctx.state === "suspended") await ctx.resume();
         } catch {}
@@ -855,7 +788,6 @@ function TodoWrapper() {
   };
 
   useEffect(() => {
-    // 只有正在 native 播放時，音量拖動才重播
     if (!isNativePlaying) return;
     if (!soundPath) return;
 
@@ -871,7 +803,6 @@ function TodoWrapper() {
           Math.min(1, Number.isFinite(raw) ? raw / 3.5 : 1)
         );
 
-        // ✅ 用 raw：不會把 isNativePlaying 變 false/true
         await stopAlarmNativeRaw();
         await playAlarmNativeRaw(soundPath, vol01);
       } catch {}
@@ -913,7 +844,7 @@ function TodoWrapper() {
       if (secLeft <= 0) {
         setRemainingSec(0);
         setTimeout(() => {
-          finishActive(true);
+          finishActive();
         }, 0);
       } else {
         setRemainingSec(secLeft);
@@ -952,8 +883,8 @@ function TodoWrapper() {
       },
       ui: {
         showCompleted,
+        notificationMode, // ✅ NEW
         sound: {
-          //dataUrl: soundDataUrl,
           name: soundName,
           volume: soundVolume,
           path: soundPath,
@@ -972,13 +903,13 @@ function TodoWrapper() {
     soundName,
     soundVolume,
     soundPath,
+    notificationMode,
   ]);
 
   useEffect(() => {
     const restore = async () => {
       if (!soundPath) return;
 
-      // blob url 重開會失效，所以每次有 path 就重建一次 dataUrl
       try {
         revokeUrlIfNeeded(soundDataUrl);
 
@@ -1023,7 +954,7 @@ function TodoWrapper() {
     return () => clearInterval(timer);
   }, [status, activeId, remainingSec]);
 
-  // when remainingSec hits 0 while running -> play mp3 + notify + auto finish (once)
+  // when remainingSec hits 0 while running -> SOUND or QUIET (NEW)
   useEffect(() => {
     const run = async () => {
       if (status !== "running") return;
@@ -1033,23 +964,54 @@ function TodoWrapper() {
 
       notifiedRef.current = true;
 
+      // ✅ QUIET MODE: 不播音效，開 app + overlay
+      if (notificationMode === "quiet") {
+        // 保險：停掉任何 native alarm（避免你之前 preview 還在響）
+        try {
+          await stopAlarmNative();
+        } catch {}
+
+        // 系統通知：不 beep（你要完全靜音）
+        fireNotification({
+          title: "Time to take a break!",
+          body: `Finished: ${activeTodo.content} (${
+            activeTodo.minutes ?? 25
+          }m)`,
+          beep: false,
+        });
+
+        // 拉出 app（best effort）
+        await showAppAndFocusBestEffort();
+        await new Promise((r) => setTimeout(r, 80));
+
+        setQuietOverlayText(
+          `Time to rest 💗\nYou’ve been working on ${activeTodo.content} for ${
+            activeTodo.minutes ?? 25
+          } min!\nStretch a little and reset 🫧`
+        );
+
+        setQuietOverlayOpen(true);
+
+        // ✅ 保持你原本行為：自動 finish
+        finishActive();
+        return;
+      }
+
+      // ✅ SOUND MODE（原本行為）
       const ok = await playAlarmNative();
 
-      const isBg = document.visibilityState !== "visible";
-
       fireNotification({
-        title: "Time’s up!",
+        title: "Time to take a break!",
         body: `Finished: ${activeTodo.content} (${activeTodo.minutes ?? 25}m)`,
-        // ✅ 背景一律 beep（就算 mp3 看起來成功也要保險）
         beep: !ok,
       });
 
-      finishActive(true);
+      finishActive();
     };
 
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remainingSec, status, activeTodo]);
+  }, [remainingSec, status, activeTodo, notificationMode]);
 
   useEffect(() => {
     notifiedRef.current = false;
@@ -1079,14 +1041,26 @@ function TodoWrapper() {
   // -----------------------------
   // Listen tray menu -> open shortcut capture overlay
   // -----------------------------
+  const [shortcutCapture, setShortcutCapture] = useState({
+    open: false,
+    target: null,
+    hint: "",
+  });
+
+  const [pendingShortcut, setPendingShortcut] = useState(null);
+
   useEffect(() => {
     let un1, un2;
 
     (async () => {
-      // Rust 会 emit: ui://capture-shortcut with payload: { target: "sound" | "popover" }
       un1 = await listen("ui://capture-shortcut", (e) => {
         const target = e?.payload?.target;
-        if (target !== "sound" && target !== "popover") return;
+        if (
+          target !== "sound" &&
+          target !== "popover" &&
+          target !== "notif_mode"
+        )
+          return;
 
         setPendingShortcut(null);
         setShortcutCapture({
@@ -1095,14 +1069,13 @@ function TodoWrapper() {
           hint:
             target === "sound"
               ? "Press the shortcut you want to set (⌘⇧K). Press Esc to cancel."
-              : "Press the shortcut you want to set (⌘⇧J). Press Esc to cancel.",
+              : target === "popover"
+              ? "Press the shortcut you want to set (⌘⇧J). Press Esc to cancel."
+              : "Press the shortcut you want to set (⌘⇧L). Press Esc to cancel.",
         });
       });
 
-      // 可选：Rust 更新完后可以回传成功提示
-      un2 = await listen("ui://shortcut-updated", (e) => {
-        // payload: { target, display }
-        // 你可以在这里做 toast；现在先简单关掉 overlay
+      un2 = await listen("ui://shortcut-updated", () => {
         setShortcutCapture((s) => ({ ...s, open: false }));
       });
     })();
@@ -1113,13 +1086,33 @@ function TodoWrapper() {
     };
   }, []);
 
-  /// -----------------------------
-  // Listen global shortcut: toggle Sound panel
+  // -----------------------------
+  // Listen global shortcut: toggle Notify panel (UPDATED: same event name)
   // -----------------------------
   const lastToggleAtRef = useRef(0);
 
+  const lastToggleNotifAtRef = useRef(0);
+
   useEffect(() => {
-    // ✅ HMR/StrictMode 防重複：如果之前有 listener，先關掉
+    let un;
+
+    (async () => {
+      un = await listen("ui://toggle-notif-mode", () => {
+        const now = performance.now();
+        if (now - lastToggleNotifAtRef.current < 80) return; // ✅ 防连发
+        lastToggleNotifAtRef.current = now;
+
+        setShowNotifyPanel(true);
+        setNotificationMode((m) => (m === "sound" ? "quiet" : "sound"));
+      });
+    })();
+
+    return () => {
+      un?.();
+    };
+  }, []);
+
+  useEffect(() => {
     if (window.__unlistenToggleSound) {
       try {
         window.__unlistenToggleSound();
@@ -1130,24 +1123,17 @@ function TodoWrapper() {
     let disposed = false;
 
     (async () => {
-      const un = await listen("ui://toggle-sound", (e) => {
-        // ✅ 冷卻去重：同一次按鍵造成的連發/雙 listener，80~150ms 內只吃一次
+      const un = await listen("ui://toggle-sound", () => {
         const now = performance.now();
         if (now - lastToggleAtRef.current < 120) return;
         lastToggleAtRef.current = now;
 
-        console.log("[ui://toggle-sound] received", e);
-
-        // setShowSoundPanel((v) => !v); // ✅ 真正 toggle (原本)
-        setShowSoundPanel((v) => {
+        setShowNotifyPanel((v) => {
           const next = !v;
-
-          // ✅ 如果这次是“关面板”，就一起 stop web + native
           if (!next) {
-            stopSound(); // 停 web audio
-            stopAlarmNative(); // 停 native afplay（不 await 也没关系）
+            stopSound();
+            stopAlarmNative();
           }
-
           return next;
         });
       });
@@ -1157,7 +1143,6 @@ function TodoWrapper() {
         return;
       }
 
-      // ✅ 存到全域，HMR 下下一次會先 unlisten
       window.__unlistenToggleSound = un;
     })();
 
@@ -1171,6 +1156,42 @@ function TodoWrapper() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!shortcutCapture.open) return;
+
+    const onKeyDown = async (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShortcutCapture((s) => ({ ...s, open: false }));
+        return;
+      }
+
+      const sc = keyEventToShortcut(e);
+      if (!sc) return;
+
+      e.preventDefault();
+
+      setPendingShortcut(sc);
+
+      try {
+        await invoke("set_shortcut", {
+          target: shortcutCapture.target,
+          code: sc.code,
+          meta: sc.mods.meta,
+          shift: sc.mods.shift,
+          alt: sc.mods.alt,
+          ctrl: sc.mods.ctrl,
+        });
+      } catch (err) {
+        alert(String(err));
+        setPendingShortcut(null);
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [shortcutCapture.open, shortcutCapture.target]);
 
   // -----------------------------
   // Apply theme tokens
@@ -1226,7 +1247,6 @@ function TodoWrapper() {
     localStorage.setItem(TAGS_KEY, JSON.stringify(tags));
   }, [tags]);
 
-  // ✅ UX: switching tag -> collapse Completed to avoid empty open panel
   useEffect(() => {
     setShowCompleted(false);
   }, [activeTag]);
@@ -1324,7 +1344,7 @@ function TodoWrapper() {
     setStatus("running");
   };
 
-  const finishActive = (fromAuto = false) => {
+  const finishActive = () => {
     if (!activeId) return;
 
     setTodos((prev) =>
@@ -1352,7 +1372,6 @@ function TodoWrapper() {
       if (e.key !== "Enter") return;
       if (e.isComposing) return;
 
-      // 1) 正在输入就不要收起
       const t = e.target;
       const isTyping =
         t &&
@@ -1361,16 +1380,11 @@ function TodoWrapper() {
           t.isContentEditable);
 
       if (isTyping) return;
-
-      // 2) Edit mode 不收起（Enter 应该用来 save）
       if (todos.some((x) => x.isEditing)) return;
 
-      if (showSoundPanel) return;
-      // 3) 任意 popover 打开时不收起（MinuteSelect / TagSelect）
-      // MinuteSelect 你用的是 id="minute-popover"
-      if (document.getElementById("minute-popover")) return;
+      if (showNotifyPanel) return;
 
-      // 如果你之后做 TagSelect wheel，也建议给它一个 id，比如 "tagwheel-popover"
+      if (document.getElementById("minute-popover")) return;
       if (document.getElementById("tagwheel-popover")) return;
 
       e.preventDefault();
@@ -1379,56 +1393,52 @@ function TodoWrapper() {
       invoke("hide_popover_cmd");
     };
 
-    // capture=true：保证不会被别的组件抢走（更稳）
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [todos, showSoundPanel]);
-
-  useEffect(() => {
-    if (!shortcutCapture.open) return;
-
-    const onKeyDown = async (e) => {
-      // Esc 取消
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setShortcutCapture((s) => ({ ...s, open: false }));
-        return;
-      }
-
-      const sc = keyEventToShortcut(e);
-      if (!sc) return;
-
-      e.preventDefault();
-
-      setPendingShortcut(sc);
-
-      // 调 Rust 保存 + 注册
-      try {
-        await invoke("set_shortcut", {
-          target: shortcutCapture.target, // "sound" | "popover"
-          code: sc.code,
-          meta: sc.mods.meta,
-          shift: sc.mods.shift,
-          alt: sc.mods.alt,
-          ctrl: sc.mods.ctrl,
-        });
-
-        // Rust 成功后会 emit ui://shortcut-updated，你的 un2 会关掉 overlay
-        // 这里不用手动关也行
-      } catch (err) {
-        // 失败就给个提示（你也可以做 toast）
-        alert(String(err));
-        setPendingShortcut(null);
-      }
-    };
-
-    // capture=true：更稳，不会被 input 抢走
-    document.addEventListener("keydown", onKeyDown, true);
-    return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [shortcutCapture.open, shortcutCapture.target]);
+  }, [todos, showNotifyPanel]);
 
   return (
     <>
+      {/* ✅ Quiet mode overlay */}
+      {quietOverlayOpen && (
+        <div
+          className="alarm-overlay"
+          onMouseDown={() => setQuietOverlayOpen(false)}
+        >
+          <div className="alarm-modal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="alarm-head">
+              <div className="alarm-title">Time to take a break!</div>
+              <button
+                type="button"
+                className="alarm-close"
+                onClick={() => setQuietOverlayOpen(false)}
+                aria-label="Close"
+                title="Esc"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="alarm-body">
+              {quietOverlayText.split("\n").map((line, idx) => (
+                <div key={idx}>{line}</div>
+              ))}
+            </div>
+
+            <div className="alarm-actions">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setQuietOverlayOpen(false)}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ Shortcut overlay (原本) */}
       {shortcutCapture.open && (
         <div
           className="shortcut-overlay"
@@ -1441,7 +1451,11 @@ function TodoWrapper() {
             <div className="shortcut-head">
               <div className="shortcut-title">
                 Shortcut：
-                {shortcutCapture.target === "sound" ? "Sound" : "Popover"}
+                {shortcutCapture.target === "sound"
+                  ? "Sound"
+                  : shortcutCapture.target === "popover"
+                  ? "Popover"
+                  : "Notify Mode"}
               </div>
 
               <button
@@ -1469,6 +1483,7 @@ function TodoWrapper() {
           </div>
         </div>
       )}
+
       <div className="menu-card">
         <div className="menu-main">
           <header className="menu-header">
@@ -1512,7 +1527,6 @@ function TodoWrapper() {
                 )}
               </div>
 
-              {/* ✅ 重點：header-badges 變定位容器，sound-panel absolute 才會貼著它 */}
               <div
                 className="header-badges"
                 style={{ position: "relative", zIndex: 10 }}
@@ -1521,117 +1535,198 @@ function TodoWrapper() {
                   {headerRight}
                 </button>
 
+                {/* ✅ 🔔 Notification Panel */}
                 <button
                   type="button"
                   className="badge-music"
-                  onClick={() => setShowSoundPanel((v) => !v)}
-                  aria-label="Sound"
-                  title="Sound"
+                  onClick={() => setShowNotifyPanel((v) => !v)}
+                  aria-label="Notifications"
+                  title={
+                    notificationMode === "sound" ? "Sound mode" : "Quiet mode"
+                  }
                 >
-                  🎵
+                  {notificationMode === "sound" ? "🎵" : "💭"}
                 </button>
 
-                {showSoundPanel && (
-                  <div className="sound-panel" ref={soundPanelWrapRef}>
+                {showNotifyPanel && (
+                  <div className="sound-panel" ref={notifyPanelWrapRef}>
                     <div className="sound-row">
-                      <div className="sound-title">Sound</div>
+                      <div className="sound-title">Notifications</div>
 
                       <button
                         type="button"
                         className="sound-close"
                         onClick={async () => {
-                          setShowSoundPanel(false);
+                          setShowNotifyPanel(false);
                           stopSound();
-                          await stopAlarmNative();
+                          try {
+                            await stopAlarmNative();
+                          } catch {}
                         }}
-                        aria-label="Close sound panel"
+                        aria-label="Close notification panel"
                         title="Close"
                       >
                         ✕
                       </button>
                     </div>
 
-                    <div className="sound-meta" title={soundName || ""}>
-                      {soundDataUrl
-                        ? `Selected: ${soundName || "mp3"}`
-                        : "No sound selected"}
-                    </div>
-
-                    <div className="sound-actions">
+                    {/* ✅ mode switch */}
+                    <div className="notif-mode">
                       <button
                         type="button"
-                        className="btn ghost"
-                        onClick={onPickMp3}
-                        title="Pick an mp3"
+                        className={`notif-mode-btn ${
+                          notificationMode === "sound" ? "active" : ""
+                        }`}
+                        onClick={() => setNotificationMode("sound")}
+                        title="Sound notification"
                       >
-                        Upload
+                        🎵 Sound
                       </button>
 
                       <button
                         type="button"
-                        className="btn ghost"
-                        onClick={playAlarmNative}
-                        disabled={!soundPath}
-                        title="Play (Native)"
+                        className={`notif-mode-btn ${
+                          notificationMode === "quiet" ? "active" : ""
+                        }`}
+                        onClick={() => setNotificationMode("quiet")}
+                        title="Quiet notification"
                       >
-                        Play
-                      </button>
-
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        onClick={stopAlarmNative}
-                        disabled={!soundPath}
-                        title="Stop (Native)"
-                      >
-                        Stop
-                      </button>
-
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        onClick={togglePauseResume}
-                        disabled={!soundDataUrl && !soundPath}
-                        title="Pause / Resume"
-                      >
-                        {isSoundPlaying ? "Pause" : "Resume"}
-                      </button>
-
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        onClick={restartSound}
-                        disabled={!soundDataUrl}
-                        title="Restart"
-                      >
-                        Restart
-                      </button>
-
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        onClick={clearSound}
-                        disabled={!soundDataUrl}
-                        title="Clear"
-                      >
-                        Clear
+                        💭 Quiet
                       </button>
                     </div>
 
-                    <div className="sound-slider">
-                      <div className="muted">Volume</div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="3.5"
-                        step="0.05"
-                        value={Number(soundVolume) || 1}
-                        onChange={(e) => setSoundVolume(e.target.value)}
-                      />
-                      <div className="muted">
-                        {Number(soundVolume || 1).toFixed(2)}x
-                      </div>
-                    </div>
+                    {/* ✅ SOUND MODE: show your existing sound controls */}
+                    {notificationMode === "sound" ? (
+                      <>
+                        <div className="sound-meta" title={soundName || ""}>
+                          {soundDataUrl
+                            ? `Selected: ${soundName || "mp3"}`
+                            : "No sound selected"}
+                        </div>
+
+                        <div className="sound-actions">
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            onClick={onPickMp3}
+                            title="Pick an mp3"
+                          >
+                            Upload
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            onClick={playAlarmNative}
+                            disabled={!soundPath}
+                            title="Play (Native)"
+                          >
+                            Play
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            onClick={stopAlarmNative}
+                            disabled={!soundPath}
+                            title="Stop (Native)"
+                          >
+                            Stop
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            onClick={togglePauseResume}
+                            disabled={!soundDataUrl && !soundPath}
+                            title="Pause / Resume"
+                          >
+                            {isSoundPlaying ? "Pause" : "Resume"}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            onClick={restartSound}
+                            disabled={!soundDataUrl}
+                            title="Restart"
+                          >
+                            Restart
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            onClick={clearSound}
+                            disabled={!soundDataUrl}
+                            title="Clear"
+                          >
+                            Clear
+                          </button>
+                        </div>
+
+                        <div className="sound-slider">
+                          <div className="muted">Volume</div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="3.5"
+                            step="0.05"
+                            value={Number(soundVolume) || 1}
+                            onChange={(e) => setSoundVolume(e.target.value)}
+                          />
+                          <div className="muted">
+                            {Number(soundVolume || 1).toFixed(2)}x
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      /* ✅ QUIET MODE: short description + test overlay */
+                      <>
+                        <div className="sound-meta">Pop-up notification</div>
+
+                        <div className="sound-actions">
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            onClick={async () => {
+                              await showAppAndFocusBestEffort();
+                              await new Promise((r) => setTimeout(r, 80));
+                              setQuietOverlayText(
+                                "Preview window\nQuiet reminder"
+                              );
+                              setQuietOverlayOpen(true);
+                            }}
+                            title="Preview quiet overlay"
+                          >
+                            Preview
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            onClick={async () => {
+                              try {
+                                await stopAlarmNative();
+                              } catch {}
+                              stopSound();
+                            }}
+                            title="Stop any sound"
+                          >
+                            Stop Sound
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            onClick={() => setShowNotifyPanel(false)}
+                            title="Close"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1642,8 +1737,7 @@ function TodoWrapper() {
 
           <div className="now-bar">
             <div className="now-bar-left">
-              <span className="now-title">Now</span>{" "}
-              {/* <-- TEMP to match style */}
+              <span className="now-title">Now</span>
             </div>
 
             <div className="now-bar-right">
@@ -1771,11 +1865,7 @@ function TodoWrapper() {
           >
             Resume
           </button>
-          <button
-            className="btn"
-            disabled={!isLocked}
-            onClick={() => finishActive(false)}
-          >
+          <button className="btn" disabled={!isLocked} onClick={finishActive}>
             Finish
           </button>
         </div>

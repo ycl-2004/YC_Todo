@@ -1,0 +1,179 @@
+/* ============================================================
+   NEW: Notification mode toggle inside panel
+   ============================================================ */
+.notif-mode {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+
+.notif-mode-btn {
+  flex: 1 1 0;
+  height: 32px;
+  border-radius: 12px;
+
+  border: 1px solid var(--card-border);
+  background: var(--surface-1);
+  color: var(--ink);
+
+  font-weight: 900;
+  font-size: 12px;
+
+  cursor: pointer;
+
+  transition: transform 120ms var(--ease), filter 120ms var(--ease);
+}
+
+.notif-mode-btn:hover {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
+
+.notif-mode-btn:active {
+  transform: translateY(0);
+}
+
+.notif-mode-btn.active {
+  background: color-mix(in srgb, var(--accent) 72%, white);
+  color: #fff;
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+/* ============================================================
+     NEW: Quiet alarm overlay (no sound)
+     ============================================================ */
+.alarm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+
+.alarm-modal {
+  width: min(520px, 94vw);
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--card-border));
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+  padding: 16px;
+  color: var(--alarm-ink);
+
+  background: radial-gradient(
+      120% 110% at 18% 0%,
+      color-mix(in srgb, var(--accent) 55%, white),
+      rgba(255, 255, 255, 0.82) 80%,
+      rgba(255, 255, 255, 0.7)
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent) 90%, transparent),
+      transparent 62%
+    ),
+    rgba(255, 255, 255, 0.84);
+
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+.alarm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  position: relative;
+  justify-content: center; /* 中心对齐整体 */
+}
+
+.alarm-title {
+  color: var(--alarm-ink);
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  width: 100%;
+  pointer-events: none; /* 避免挡到右上角按钮点击 */
+
+  font-size: 22px;
+  font-weight: 950; /* 更“标题感” */
+  letter-spacing: -0.02em; /* 更高级的紧凑感 */
+  line-height: 1.15;
+  color: color-mix(in srgb, var(--ink) 92%, black 8%);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35); /* 奶霧底上更立体 */
+}
+
+.alarm-close {
+  border: 1px solid var(--card-border);
+  background: var(--glass);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 800;
+  cursor: pointer;
+  color: var(--alarm-ink);
+  margin-left: auto;
+  position: relative;
+  z-index: 2;
+
+  color: color-mix(in srgb, var(--ink) 88%, black 12%);
+  background: color-mix(in srgb, var(--glass) 70%, rgba(255, 255, 255, 0.35));
+  border-color: color-mix(in srgb, var(--card-border) 85%, transparent);
+}
+
+.alarm-body {
+  color: var(--ink);
+  line-height: 1.35;
+  margin-bottom: 12px;
+  white-space: pre-wrap;
+  color: var(--alarm-muted);
+  text-align: center;
+
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  color: color-mix(in srgb, var(--ink) 70%, white 30%);
+
+  /* 让每一行更像“句子块” */
+  opacity: 1;
+}
+
+.alarm-body br {
+  content: "";
+  margin: 10px 0;
+  display: block;
+}
+
+.alarm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.alarm-actions button,
+.alarm-actions .btn {
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* ==============================
+   FIX: Alarm overlay readability in Dark mode
+   ============================== */
+:root[data-theme="dark"] .alarm-title {
+  color: rgba(0, 0, 0, 0.82);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+:root[data-theme="dark"] .alarm-body {
+  color: rgba(0, 0, 0, 0.62);
+}
