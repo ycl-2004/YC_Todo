@@ -434,6 +434,23 @@ fn show_popover_cmd(app: tauri::AppHandle) -> Result<(), String> {
   Ok(())
 }
 
+#[tauri::command]
+fn set_popover_pin(app: tauri::AppHandle, pinned: bool) -> Result<(), String> {
+  #[cfg(target_os = "macos")]
+  {
+    use tauri_plugin_nspopover::AppExt as _;
+    use objc2_app_kit::NSPopoverBehavior;
+
+    let popover = app.ns_popover();
+    popover.setBehavior(if pinned {
+      NSPopoverBehavior::ApplicationDefined
+    } else {
+      NSPopoverBehavior::Transient
+    });
+  }
+
+  Ok(())
+}
 
 /// ✅ 前端录完快捷键后调用：注册并持久化
 #[tauri::command]
@@ -640,7 +657,8 @@ pub fn run() {
       stop_alarm,
       hide_popover_cmd,
       show_popover_cmd, // ✅ 加这行
-      set_shortcut
+      set_shortcut,
+      set_popover_pin
     ])
 
     .setup(|app| {
@@ -664,7 +682,6 @@ pub fn run() {
       window.to_popover(ToPopoverOptions {
         is_fullsize_content: true,
       });
-
       // ✅ 防止 close 退出：close => hide popover
       let handle_for_close = app.handle().clone();
       window.on_window_event(move |event| {

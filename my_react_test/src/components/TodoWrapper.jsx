@@ -76,6 +76,7 @@ function TodoWrapper() {
   // Load initial state from storage
   // -----------------------------
   const initialLoadedRef = useRef(false);
+  const notifBtnRef = useRef(null);
 
   const DEFAULT_TAGS = ["Study", "Exam", "Life", "Daily", "Other"];
 
@@ -315,6 +316,12 @@ function TodoWrapper() {
   const [quietOverlayOpen, setQuietOverlayOpen] = useState(false);
   const [quietOverlayText, setQuietOverlayText] = useState("");
 
+  useEffect(() => {
+    invoke("set_popover_pin", { pinned: quietOverlayOpen }).catch(
+      console.error
+    );
+  }, [quietOverlayOpen]);
+
   const showAppAndFocusBestEffort = async () => {
     try {
       await invoke("show_popover_cmd"); // ✅ 关键：让 menubar popover 真正弹出来
@@ -364,6 +371,8 @@ function TodoWrapper() {
   useEffect(() => {
     const onDown = async (e) => {
       if (!showNotifyPanel) return;
+      // ✅ 如果点的是 notification button，本次不做 outside close
+      if (notifBtnRef.current?.contains(e.target)) return;
       if (!notifyPanelWrapRef.current) return;
       if (notifyPanelWrapRef.current.contains(e.target)) return;
 
@@ -1539,8 +1548,10 @@ function TodoWrapper() {
 
                 {/* ✅ 🔔 Notification Panel */}
                 <button
+                  ref={notifBtnRef}
                   type="button"
                   className="badge-music"
+                  onMouseDown={(e) => e.stopPropagation()}
                   onClick={() => setShowNotifyPanel((v) => !v)}
                   aria-label="Notifications"
                   title={
