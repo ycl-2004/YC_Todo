@@ -379,14 +379,15 @@ function TodoWrapper() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showNotifyPanel, soundPath]);
 
-  // Quiet overlay: Esc 關閉
+  // Quiet overlay: Esc not 關閉
   useEffect(() => {
     if (!quietOverlayOpen) return;
 
     const onKey = (e) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      setQuietOverlayOpen(false);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+      }
     };
 
     document.addEventListener("keydown", onKey, true);
@@ -966,12 +967,11 @@ function TodoWrapper() {
 
       // ✅ QUIET MODE: 不播音效，開 app + overlay
       if (notificationMode === "quiet") {
-        // 保險：停掉任何 native alarm（避免你之前 preview 還在響）
         try {
           await stopAlarmNative();
         } catch {}
 
-        // 系統通知：不 beep（你要完全靜音）
+        // ✅ 1) 先弹系统通知（不 beep）
         fireNotification({
           title: "Time to take a break!",
           body: `Finished: ${activeTodo.content} (${
@@ -980,19 +980,21 @@ function TodoWrapper() {
           beep: false,
         });
 
-        // 拉出 app（best effort）
-        await showAppAndFocusBestEffort();
-        await new Promise((r) => setTimeout(r, 80));
+        // ✅ 2) 再延迟打开 app + overlay（减少“闪一下”的感觉）
+        setTimeout(async () => {
+          await showAppAndFocusBestEffort();
+          await new Promise((r) => setTimeout(r, 80));
 
-        setQuietOverlayText(
-          `Time to rest 💗\nYou’ve been working on ${activeTodo.content} for ${
-            activeTodo.minutes ?? 25
-          } min!\nStretch a little and reset 🫧`
-        );
+          setQuietOverlayText(
+            `Time to rest 💗\nYou’ve been working on ${
+              activeTodo.content
+            } for ${
+              activeTodo.minutes ?? 25
+            } min!\nStretch a little and reset 🫧`
+          );
+          setQuietOverlayOpen(true);
+        }, 250); // 200~400 都可以，250通常最顺
 
-        setQuietOverlayOpen(true);
-
-        // ✅ 保持你原本行為：自動 finish
         finishActive();
         return;
       }
@@ -1046,6 +1048,8 @@ function TodoWrapper() {
     target: null,
     hint: "",
   });
+
+  const isPopoverVisible = () => document.visibilityState === "visible";
 
   const [pendingShortcut, setPendingShortcut] = useState(null);
 
@@ -1369,6 +1373,7 @@ function TodoWrapper() {
   // -----------------------------
   useEffect(() => {
     const onKey = (e) => {
+      if (quietOverlayOpen) return;
       if (e.key !== "Enter") return;
       if (e.isComposing) return;
 
@@ -1401,10 +1406,7 @@ function TodoWrapper() {
     <>
       {/* ✅ Quiet mode overlay */}
       {quietOverlayOpen && (
-        <div
-          className="alarm-overlay"
-          onMouseDown={() => setQuietOverlayOpen(false)}
-        >
+        <div className="alarm-overlay" onMouseDown={(e) => e.stopPropagation()}>
           <div className="alarm-modal" onMouseDown={(e) => e.stopPropagation()}>
             <div className="alarm-head">
               <div className="alarm-title">Time to take a break!</div>
