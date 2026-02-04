@@ -33,7 +33,9 @@ objc = "0.2"
 
 
 # ✅ 只留这一条
-tauri-plugin-nspopover = { git = "https://github.com/freethinkel/tauri-nspopover-plugin.git", version = "4.0.1" }
+# tauri-plugin-nspopover = { git = "https://github.com/freethinkel/tauri-nspopover-plugin git", version = "4.0.1" }
+tauri-plugin-nspopover = { path = "crates/tauri-plugin-nspopover" }
+
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = { version = "0.3.1", features = ["NSPopover", "NSStatusBarButton", "NSWindow"] }

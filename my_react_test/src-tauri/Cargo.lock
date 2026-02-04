@@ -4555,7 +4555,6 @@ dependencies = [
 [[package]]
 name = "tauri-plugin-nspopover"
 version = "4.0.1"
-source = "git+https://github.com/freethinkel/tauri-nspopover-plugin.git#c5c5405b78eb1cf1afc21a5cf36bcf87a504a8db"
 dependencies = [
  "cocoa 0.25.0",
  "objc",
