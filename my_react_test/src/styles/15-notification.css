@@ -3,8 +3,8 @@
    ============================================================ */
 .notif-mode {
   display: flex;
-  gap: 8px;
-  margin: 8px 0 10px;
+  gap: 6px; /* 8 → 6 */
+  margin: 6px 0 8px; /* 8 0 10 → 更紧 */
 }
 
 .notif-mode-btn {
@@ -20,8 +20,11 @@
   font-size: 12px;
 
   cursor: pointer;
+  padding: 0 10px;
 
-  transition: transform 120ms var(--ease), filter 120ms var(--ease);
+  transition:
+    transform 120ms var(--ease),
+    filter 120ms var(--ease);
 }
 
 .notif-mode-btn:hover {
@@ -65,7 +68,8 @@
   padding: 16px;
   color: var(--alarm-ink);
 
-  background: radial-gradient(
+  background:
+    radial-gradient(
       120% 110% at 18% 0%,
       color-mix(in srgb, var(--accent) 55%, white),
       rgba(255, 255, 255, 0.82) 80%,

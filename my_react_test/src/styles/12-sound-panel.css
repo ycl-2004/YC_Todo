@@ -6,9 +6,9 @@
   right: 0;
   top: calc(100% + 10px);
 
-  width: 280px;
-  padding: 12px;
-  border-radius: 16px;
+  width: 248px; /* 280 → 248（你也可以试 240） */
+  padding: 10px; /* 12 → 10 */
+  border-radius: 14px;
 
   background: var(--surface-3);
   border: 1px solid var(--stroke);
@@ -39,7 +39,7 @@
 .sound-meta {
   font-size: 12px;
   color: var(--muted);
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 
   white-space: nowrap;
   overflow: hidden;
@@ -49,14 +49,15 @@
 .sound-actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .sound-panel .btn.ghost {
   border-radius: 12px;
   padding: 9px 8px;
-  font-size: 10px;
+  font-size: 10px; /* 先不动，避免看不清 */
+  min-height: 30px; /* ✅ 强制按钮别太高 */
   font-weight: 700;
   letter-spacing: 0.2px;
 }
@@ -123,4 +124,50 @@
   box-shadow: var(--shadow-sm);
 
   cursor: pointer;
+}
+
+.sound-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr; /* 左空 / 中标题 / 右按钮 */
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.sound-title {
+  grid-column: 2;
+  justify-self: center;
+  text-align: center;
+}
+
+.sound-close {
+  grid-column: 3;
+  justify-self: end;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+
+  display: grid;
+  place-items: center;
+
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--card-border));
+  background: rgba(255, 255, 255, 0.72);
+  color: color-mix(in srgb, var(--ink) 70%, transparent);
+
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+
+  transition:
+    transform 120ms var(--ease),
+    background 120ms var(--ease),
+    border-color 120ms var(--ease);
+}
+
+.sound-close:hover {
+  background: color-mix(in srgb, var(--accent) 18%, white);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  transform: translateY(-1px);
+}
+
+.sound-close:active {
+  transform: translateY(0);
 }
