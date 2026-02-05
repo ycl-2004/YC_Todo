@@ -1,0 +1,62 @@
+echo "=============================="
+echo "YC Todo — Friend Debug Script"
+echo "=============================="
+
+APP="/Applications/YC Todo.app"
+
+echo ""
+echo "1) Check app exists in /Applications"
+if [ -d "$APP" ]; then
+  echo "✅ Found: $APP"
+else
+  echo "❌ Not found: $APP"
+  echo "👉 Please drag YC Todo.app into /Applications first."
+  exit 1
+fi
+
+echo ""
+echo "2) List MacOS executable"
+ls -la "$APP/Contents/MacOS/"
+
+echo ""
+echo "3) Check machine architecture (Intel vs Apple Silicon)"
+uname -m
+
+echo ""
+echo "4) Check binary architecture (no lipo needed)"
+file "$APP/Contents/MacOS/"*
+
+echo ""
+echo "5) Gatekeeper assessment (verbose)"
+sudo spctl -a -vvv --type execute "$APP" || true
+
+echo ""
+echo "6) Remove quarantine attributes"
+sudo xattr -rc "$APP" || true
+echo "✅ xattr done"
+
+echo ""
+echo "7) Ad-hoc sign the app (local signature)"
+sudo codesign --force --deep --sign - "$APP" || true
+
+echo ""
+echo "8) Verify codesign"
+codesign --verify --deep --strict --verbose=2 "$APP" || true
+
+echo ""
+echo "9) Try opening the app normally"
+open "$APP" || true
+
+echo ""
+echo "10) Run the executable directly (prints crash reason if any)"
+echo "👉 If it crashes, copy the last 20 lines and send back."
+"$APP/Contents/MacOS/app" 2>&1 | tail -n 40
+
+echo ""
+echo "11) If app still seems not running: show last 2 minutes logs"
+log show --last 2m --predicate 'process == "YC Todo" OR process == "app"' --info 2>/dev/null | tail -n 60
+
+echo ""
+echo "=============================="
+echo "Done. Send the output back."
+echo "=============================="

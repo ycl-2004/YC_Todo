@@ -23,7 +23,7 @@
         "height": 520,
         "resizable": false,
         "decorations": false,
-        "transparent": false,
+        "transparent": true,
         "visible": false
       }
     ],

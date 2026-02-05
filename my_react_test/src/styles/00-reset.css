@@ -33,3 +33,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
   overflow: hidden;
 }
+
+html,
+body,
+#root {
+  background: transparent !important;
+}
+
+body {
+  overflow: hidden; /* 防止边缘露底 */
+}

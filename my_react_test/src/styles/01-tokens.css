@@ -41,11 +41,11 @@
   --bg2: color-mix(in srgb, var(--base2) 76%, var(--accent) 24%);
 
   /* ✅ Glass 更白、更霧（A 的核心） */
-  --glass: color-mix(in srgb, var(--bg1) 20%, rgba(255, 255, 255, 0.28));
-  --glass-strong: color-mix(in srgb, var(--bg1) 38%, rgba(255, 255, 255, 0.78));
+  --glass: color-mix(in srgb, var(--bg1) 55%, rgba(255, 255, 255, 0.1));
+  --glass-strong: color-mix(in srgb, var(--bg1) 70%, rgba(255, 255, 255, 0.18));
 
   --surface-1: var(--glass);
-  --surface-2: color-mix(in srgb, var(--glass) 78%, transparent);
+  --surface-2: color-mix(in srgb, var(--bg1) 35%, transparent);
   --surface-3: var(--glass-strong);
 
   --chip-bg: color-mix(in srgb, var(--surface-3) 74%, transparent);
