@@ -170,6 +170,97 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
+/* ============================================================
+   Fallback for older WebKit (no color-mix support)
+   - Fix: friend’s Mac shows all white in light/dark
+   ============================================================ */
+
+/* 1) If color-mix is NOT supported, provide solid fallback tokens */
+@supports not (color: color-mix(in srgb, white 50%, black)) {
+  :root {
+    /* keep your accent */
+    --accent: #d4a5c1;
+
+    /* give everything “real” colors (no color-mix) */
+    --accent-glow: rgba(212, 165, 193, 0.32);
+
+    --ink: rgba(20, 18, 18, 0.92);
+    --muted: rgba(20, 18, 18, 0.6);
+
+    --card-border: rgba(255, 255, 255, 0.42);
+    --stroke: rgba(0, 0, 0, 0.11);
+
+    /* light backgrounds */
+    --bg1: rgba(248, 240, 250, 0.98);
+    --bg2: rgba(240, 232, 246, 0.94);
+
+    --glass: rgba(255, 255, 255, 0.4);
+    --glass-strong: rgba(255, 255, 255, 0.72);
+
+    --surface-1: var(--glass);
+    --surface-2: rgba(255, 255, 255, 0.22);
+    --surface-3: var(--glass-strong);
+
+    --chip-bg: rgba(255, 255, 255, 0.36);
+    --chip-bg-strong: rgba(255, 255, 255, 0.48);
+    --chip-border: rgba(255, 255, 255, 0.32);
+
+    --accent-soft: rgba(212, 165, 193, 0.16);
+    --accent-soft-border: rgba(212, 165, 193, 0.34);
+
+    --btn-primary-bg: rgba(212, 165, 193, 0.92);
+    --btn-primary-bg2: rgba(212, 165, 193, 0.82);
+    --btn-primary-text: #fff;
+
+    --focus-ring: rgba(212, 165, 193, 0.26);
+    --form-border: rgba(212, 165, 193, 0.42);
+    --form-border-focus: rgba(212, 165, 193, 0.58);
+
+    --hover-bg: rgba(212, 165, 193, 0.14);
+    --hover-border: rgba(212, 165, 193, 0.45);
+
+    --todo-grad-1: rgba(255, 255, 255, 0.96);
+    --todo-grad-2: rgba(255, 255, 255, 0.9);
+  }
+
+  :root[data-theme="dark"] {
+    --ink: rgba(245, 243, 245, 0.92);
+    --muted: rgba(245, 243, 245, 0.62);
+
+    --card-border: rgba(255, 255, 255, 0.14);
+    --stroke: rgba(255, 255, 255, 0.18);
+
+    /* dark backgrounds (still slightly pink) */
+    --bg1: rgba(74, 72, 88, 0.94);
+    --bg2: rgba(64, 62, 78, 0.92);
+
+    --glass: rgba(0, 0, 0, 0.22);
+    --glass-strong: rgba(0, 0, 0, 0.28);
+
+    --surface-1: var(--glass);
+    --surface-2: rgba(255, 255, 255, 0.08);
+    --surface-3: var(--glass-strong);
+
+    --chip-bg: rgba(255, 255, 255, 0.1);
+    --chip-bg-strong: rgba(255, 255, 255, 0.14);
+    --chip-border: rgba(255, 255, 255, 0.12);
+
+    --hover-bg: rgba(212, 165, 193, 0.12);
+    --hover-border: rgba(212, 165, 193, 0.35);
+
+    --todo-grad-1: rgba(36, 32, 44, 1);
+    --todo-grad-2: rgba(28, 24, 36, 1);
+  }
+
+  /* optional: older WebKit may also hate backdrop-filter */
+  .menu-card,
+  .minute-pop,
+  .sound-panel {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
 /*
 ==================================
 

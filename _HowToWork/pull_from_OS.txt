@@ -1,0 +1,165 @@
+DEV_NOTES — 本地化修改 tauri-plugin-nspopover（修 IME 中文候选字层级）
+====================================================
+
+目的
+----
+将 GitHub 上通过 git 依赖引入的 tauri-plugin-nspopover 拉到本地 src-tauri/crates/，
+以便直接修改其 Rust / macOS (ObjC) 代码，并确保 Tauri app 使用的是本地版本。
+本次实际修复的问题：中文输入法 IME 候选字被 popover 挡住。
+
+----------------------------------------------------
+0) 确认在项目根目录
+----------------------------------------------------
+
+Command
+pwd
+ls
+
+Example Output
+/Users/yichenlin/Documents/GitHub/YC_Todo/my_react_test
+app-icon.png            node_modules            README.md               vite.config.js
+dist                    package-lock.json       scripts
+index.html              package.json            src
+n.iconset               public                  src-tauri
+
+----------------------------------------------------
+1) 确认依赖来源（git dependency）
+----------------------------------------------------
+
+Command
+cd src-tauri
+grep -n "nspopover" Cargo.lock
+
+Example Output
+114: "tauri-plugin-nspopover",
+4556:name = "tauri-plugin-nspopover"
+4558:source = "git+https://github.com/freethinkel/tauri-nspopover-plugin.git#c5c5405b78eb1cf1afc21a5cf36bcf87a504a8db"
+
+说明
+看到 source = git+https://github.com/...  
+表示该依赖来自 GitHub（不是 crates.io）。
+
+----------------------------------------------------
+2) 在本机找到 Cargo 的 git checkout 目录
+----------------------------------------------------
+
+Command
+find ~/.cargo/git/checkouts -maxdepth 4 -type d -name "*nspopover*" 2>/dev/null
+
+Example Output
+/Users/yichenlin/.cargo/git/checkouts/tauri-nspopover-plugin-05b48754622cc0c1
+
+----------------------------------------------------
+3) 找到真实源码所在的 commit/hash 子目录
+----------------------------------------------------
+
+Command
+ls -la /Users/yichenlin/.cargo/git/checkouts/tauri-nspopover-plugin-05b48754622cc0c1
+
+Example Output
+total 0
+drwxr-xr-x@  3 yichenlin  staff   96 Jan 25 20:35 .
+drwxr-xr-x@  4 yichenlin  staff  128 Jan 25 20:35 ..
+drwxr-xr-x@ 19 yichenlin  staff  608 Jan 25 20:35 c5c5405
+
+----------------------------------------------------
+4) 确认 crate 根目录（Cargo.toml 所在位置）
+----------------------------------------------------
+
+Command
+find /Users/yichenlin/.cargo/git/checkouts/tauri-nspopover-plugin-05b48754622cc0c1 -maxdepth 3 -name Cargo.toml
+
+Example Output
+/Users/yichenlin/.cargo/git/checkouts/tauri-nspopover-plugin-05b48754622cc0c1/c5c5405/Cargo.toml
+
+说明
+包含 Cargo.toml 的这一层（c5c5405/）就是 plugin 的真正 crate 根目录。
+
+----------------------------------------------------
+5) 复制 plugin 到项目本地（src-tauri/crates）
+----------------------------------------------------
+
+Command
+cp -R /Users/yichenlin/.cargo/git/checkouts/tauri-nspopover-plugin-05b48754622cc0c1/c5c5405 crates/tauri-plugin-nspopover
+ls crates/tauri-plugin-nspopover
+
+Example Output
+build.rs        example         package.json    pnpm-lock.yaml  screenshots     webview-dist
+Cargo.toml      LICENSE         permissions     README.md       src             webview-src
+
+说明
+看到 Cargo.toml 与 src/ 表示复制成功。
+
+----------------------------------------------------
+6) 切换 Tauri 使用本地 plugin（关键步骤）
+----------------------------------------------------
+
+编辑文件
+src-tauri/Cargo.toml
+
+Example（最终写法）
+# tauri-plugin-nspopover = { git = "https://github.com/freethinkel/tauri-nspopover-plugin.git", version = "4.0.1" }
+tauri-plugin-nspopover = { path = "crates/tauri-plugin-nspopover" }
+
+说明
+只有切换为 path 依赖，后续对 plugin 源码的修改才会真正生效。
+
+----------------------------------------------------
+7) 在本地 plugin 中搜索 popover 相关实现
+----------------------------------------------------
+
+Command
+cd crates/tauri-plugin-nspopover
+grep -RIn "setLevel|NSWindowLevel|StatusBar|PopUpMenu|Floating|windowLevel|NSPopover|level" src
+
+Example Output
+src/lib.rs:2:use objc2_app_kit::{NSPopover, NSStatusBarButton, NSWindow};
+src/lib.rs:75:        let popover = SafeNSPopover(popover_controller.popover());
+src/popover.rs:36:    fn create_popover(window: &NSWindow) -> Retained<NSPopover> {
+src/popover.rs:45:            popover.setBehavior(NSPopoverBehavior::Transient);
+
+----------------------------------------------------
+8) 打开关键源码文件，定位 popover show 的位置
+----------------------------------------------------
+
+Command
+sed -n '1,220p' src/popover.rs
+sed -n '1,260p' src/lib.rs
+
+关键发现
+在 src/lib.rs 中存在：
+popover.showRelativeToRect_ofView_preferredEdge(...)
+
+这是 popover 实际显示的时刻，
+也是插入 window level 调整逻辑的位置。
+
+----------------------------------------------------
+9) 修复结论（本次成功经验）
+----------------------------------------------------
+
+- 不要把 popover 设为 Normal level（setLevel(0)）
+  否则 popover 会被其他应用窗口盖住。
+- 使用一个“中间层级”（例如 level = 25）：
+  - popover 仍保持浮在最上层
+  - 中文输入法 IME 候选字可显示在 popover 前面
+
+核心原则：
+不是把窗口放到最低，而是“刚好不挡 IME”。
+
+----------------------------------------------------
+10) 通用流程总结（可复用）
+----------------------------------------------------
+
+1. 在 Cargo.lock 中确认 git 依赖来源
+2. 在 ~/.cargo/git/checkouts 中找到对应仓库
+3. 定位包含 Cargo.toml 的 hash 子目录
+4. 复制到 src-tauri/crates/<crate>
+5. 在 Cargo.toml 中改用 path 依赖
+6. 修改源码，build 并测试
+
+结果
+----
+- popover 正常保持浮层
+- 中文输入法候选字正常显示
+- 插件已成功本地化，便于后续维护与调试
+

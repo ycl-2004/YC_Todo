@@ -90,12 +90,12 @@ function TodoWrapper() {
 
   const [accent, setAccent] = useState(() => {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    return raw ? safeParse(raw, null)?.accent ?? "#d4a5c1" : "#d4a5c1";
+    return raw ? (safeParse(raw, null)?.accent ?? "#d4a5c1") : "#d4a5c1";
   });
 
   const [themeMode, setThemeMode] = useState(() => {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    return raw ? safeParse(raw, null)?.themeMode ?? "system" : "system";
+    return raw ? (safeParse(raw, null)?.themeMode ?? "system") : "system";
   });
 
   const [title, setTitle] = useState(() => {
@@ -258,17 +258,17 @@ function TodoWrapper() {
   // -----------------------------
   const normalizedTodos = useMemo(
     () => todos.map((t) => ({ ...t, tag: t.tag ?? "Study" })),
-    [todos]
+    [todos],
   );
 
   const allIncomplete = useMemo(
     () => normalizedTodos.filter((t) => !t.isCompleted),
-    [normalizedTodos]
+    [normalizedTodos],
   );
 
   const allCompleted = useMemo(
     () => normalizedTodos.filter((t) => t.isCompleted),
-    [normalizedTodos]
+    [normalizedTodos],
   );
 
   const visibleIncomplete = useMemo(() => {
@@ -283,7 +283,7 @@ function TodoWrapper() {
 
   const activeTodo = useMemo(
     () => todos.find((t) => t.id === activeId) || null,
-    [todos, activeId]
+    [todos, activeId],
   );
 
   const runningLabel = useMemo(() => {
@@ -318,7 +318,7 @@ function TodoWrapper() {
 
   useEffect(() => {
     invoke("set_popover_pin", { pinned: quietOverlayOpen }).catch(
-      console.error
+      console.error,
     );
   }, [quietOverlayOpen]);
 
@@ -511,7 +511,7 @@ function TodoWrapper() {
       const raw = Number(soundVolume);
       const vol01 = Math.max(
         0,
-        Math.min(1, Number.isFinite(raw) ? raw / 3.5 : 1)
+        Math.min(1, Number.isFinite(raw) ? raw / 3.5 : 1),
       );
 
       await playAlarmNativeRaw(soundPath, vol01);
@@ -810,7 +810,7 @@ function TodoWrapper() {
         const raw = Number(soundVolume);
         const vol01 = Math.max(
           0,
-          Math.min(1, Number.isFinite(raw) ? raw / 3.5 : 1)
+          Math.min(1, Number.isFinite(raw) ? raw / 3.5 : 1),
         );
 
         await stopAlarmNativeRaw();
@@ -999,7 +999,7 @@ function TodoWrapper() {
               activeTodo.content
             } for ${
               activeTodo.minutes ?? 25
-            } min!\nStretch a little and reset 🫧`
+            } min!\nStretch a little and reset 🫧`,
           );
           setQuietOverlayOpen(true);
         }, 250); // 200~400 都可以，250通常最顺
@@ -1036,10 +1036,10 @@ function TodoWrapper() {
 
     (async () => {
       unTheme = await listen("settings://theme", (e) =>
-        setThemeMode(String(e.payload))
+        setThemeMode(String(e.payload)),
       );
       unAccent = await listen("settings://accent", (e) =>
-        setAccent(String(e.payload))
+        setAccent(String(e.payload)),
       );
     })();
 
@@ -1083,8 +1083,8 @@ function TodoWrapper() {
             target === "sound"
               ? "Press the shortcut you want to set (⌘⇧K). Press Esc to cancel."
               : target === "popover"
-              ? "Press the shortcut you want to set (⌘⇧J). Press Esc to cancel."
-              : "Press the shortcut you want to set (⌘⇧L). Press Esc to cancel.",
+                ? "Press the shortcut you want to set (⌘⇧J). Press Esc to cancel."
+                : "Press the shortcut you want to set (⌘⇧L). Press Esc to cancel.",
         });
       });
 
@@ -1218,7 +1218,7 @@ function TodoWrapper() {
       else if (mode === "dark") root.dataset.theme = "dark";
       else {
         const prefersDark = window.matchMedia?.(
-          "(prefers-color-scheme: dark)"
+          "(prefers-color-scheme: dark)",
         )?.matches;
         root.dataset.theme = prefersDark ? "dark" : "light";
       }
@@ -1290,8 +1290,8 @@ function TodoWrapper() {
     if (isLocked) return;
     setTodos(
       todos.map((todo) =>
-        todo.id === id ? { ...todo, isCompleted: !todo.isCompleted } : todo
-      )
+        todo.id === id ? { ...todo, isCompleted: !todo.isCompleted } : todo,
+      ),
     );
   };
 
@@ -1301,7 +1301,7 @@ function TodoWrapper() {
       prev.map((t) => {
         if (t.id === id) return { ...t, isEditing: !t.isEditing };
         return { ...t, isEditing: false };
-      })
+      }),
     );
   };
 
@@ -1316,8 +1316,8 @@ function TodoWrapper() {
               minutes: minutes ?? t.minutes,
               isEditing: false,
             }
-          : t
-      )
+          : t,
+      ),
     );
   };
 
@@ -1362,8 +1362,8 @@ function TodoWrapper() {
 
     setTodos((prev) =>
       prev.map((t) =>
-        t.id === activeId ? { ...t, isCompleted: true, isEditing: false } : t
-      )
+        t.id === activeId ? { ...t, isCompleted: true, isEditing: false } : t,
+      ),
     );
 
     endAtRef.current = null;
@@ -1382,6 +1382,7 @@ function TodoWrapper() {
   // -----------------------------
   useEffect(() => {
     const onKey = (e) => {
+      console.log("KEY:", e.key, e.code, "target:", e.target?.tagName);
       if (quietOverlayOpen) return;
       if (e.key !== "Enter") return;
       if (e.isComposing) return;
@@ -1396,7 +1397,7 @@ function TodoWrapper() {
       if (isTyping) return;
       if (todos.some((x) => x.isEditing)) return;
 
-      if (showNotifyPanel) return;
+      //if (showNotifyPanel) return;
 
       if (document.getElementById("minute-popover")) return;
       if (document.getElementById("tagwheel-popover")) return;
@@ -1404,12 +1405,21 @@ function TodoWrapper() {
       e.preventDefault();
       e.stopPropagation();
 
+      // ✅ 1) 如果 Notifications panel 开着：Enter 关掉它
+      if (showNotifyPanel) {
+        setShowNotifyPanel(false);
+        stopSound();
+        stopAlarmNative();
+        return;
+      }
+
+      // ✅ 2) 否则：Enter 隐藏整个 popover
       invoke("hide_popover_cmd");
     };
 
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [todos, showNotifyPanel]);
+  }, [todos, showNotifyPanel, quietOverlayOpen]);
 
   return (
     <>
@@ -1465,8 +1475,8 @@ function TodoWrapper() {
                 {shortcutCapture.target === "sound"
                   ? "Sound"
                   : shortcutCapture.target === "popover"
-                  ? "Popover"
-                  : "Notify Mode"}
+                    ? "Popover"
+                    : "Notify Mode"}
               </div>
 
               <button
@@ -1706,7 +1716,7 @@ function TodoWrapper() {
                               await showAppAndFocusBestEffort();
                               await new Promise((r) => setTimeout(r, 80));
                               setQuietOverlayText(
-                                "Preview window\nQuiet reminder"
+                                "Preview window\nQuiet reminder",
                               );
                               setQuietOverlayOpen(true);
                             }}
