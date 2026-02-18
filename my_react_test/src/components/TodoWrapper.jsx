@@ -1469,6 +1469,28 @@ function TodoWrapper() {
     setRemainingSec(0);
   };
 
+  const cancelActive = async () => {
+    if (!activeId) return;
+
+    // stop any alarm/preview just in case
+    try {
+      stopSound();
+    } catch {}
+    try {
+      await stopAlarmNative();
+    } catch {}
+    setQuietOverlayOpen(false);
+
+    // IMPORTANT: do NOT mark todo completed, do NOT change list
+    endAtRef.current = null;
+    setStatus("idle");
+    setActiveId(null);
+    setRemainingSec(0);
+
+    // allow future notifications for next run
+    notifiedRef.current = false;
+  };
+
   const headerRight = useMemo(() => {
     if (isLocked && activeId) return formatTime(remainingSec);
     return `${remainingCount}`;
@@ -1999,6 +2021,15 @@ function TodoWrapper() {
             onClick={resumeActive}
           >
             Resume
+          </button>
+
+          <button
+            className="btn ghost"
+            disabled={!isLocked}
+            onClick={cancelActive}
+            title="Cancel this run (keep the task)"
+          >
+            Cancel
           </button>
           <button className="btn" disabled={!isLocked} onClick={finishActive}>
             Finish

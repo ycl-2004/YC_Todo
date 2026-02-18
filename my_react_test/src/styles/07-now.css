@@ -453,3 +453,10 @@
   color: var(--muted);
   text-align: center;
 }
+
+/* ✅ keep each todo row height consistent (even when only 1–2 items) */
+.now-list [data-todo-id] {
+  flex: 0 0 auto !important;
+  height: 42px; /* 这里就是你“4 个任务时”的那种高度 */
+  min-height: 42px;
+}
