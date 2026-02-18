@@ -15,7 +15,7 @@
     linear-gradient(180deg, var(--bg1), var(--bg2));
 
   border-radius: var(--radius-lg);
-  padding: 10px 24px 24px;
+  padding: 10px 24px 18px;
 
   border: 1px solid var(--card-border);
   box-shadow: var(--shadow-lg);
@@ -50,8 +50,8 @@
 }
 
 .footer-bar {
-  margin-top: 12px;
-  padding-top: 10px;
+  margin-top: 4px;
+  padding-top: 6px;
   border-top: 1px solid color-mix(in srgb, var(--card-border) 60%, transparent);
 
   display: flex;
