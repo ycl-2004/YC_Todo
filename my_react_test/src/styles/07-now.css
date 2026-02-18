@@ -10,8 +10,8 @@
 }
 
 /* -----------------------------
-   Tag bar (outer container)
------------------------------ */
+     Tag bar (outer container)
+  ----------------------------- */
 .now-section .tag-bar {
   flex: 0 0 auto;
 
@@ -27,6 +27,8 @@
   border: 1px solid color-mix(in srgb, var(--card-border) 55%, transparent);
   background: var(--surface-2);
   box-shadow: var(--shadow-sm);
+
+  overflow: visible;
 }
 
 /* left: chips scroll area */
@@ -39,6 +41,8 @@
   gap: 4px;
 
   overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
   scrollbar-width: none;
 }
 .tag-bar-left::-webkit-scrollbar {
@@ -71,6 +75,9 @@
 
   cursor: pointer;
   user-select: none;
+
+  flex: 0 0 auto; /* you already have this ✅ */
+  white-space: nowrap; /* you already have this ✅ */
 }
 
 .now-section .tag-chip:hover {
@@ -84,8 +91,8 @@
 }
 
 /* -----------------------------
-   Now list (scroll)
------------------------------ */
+     Now list (scroll)
+  ----------------------------- */
 .now-list {
   flex: 1 1 auto;
   min-height: 0;
@@ -104,16 +111,16 @@
 }
 
 /* -----------------------------
-   Completed panel spacing
------------------------------ */
+     Completed panel spacing
+  ----------------------------- */
 .completed-panel {
   flex: 0 0 auto;
   margin-top: 12px;
 }
 
 /* -----------------------------
-   Now bar (top bar)
------------------------------ */
+     Now bar (top bar)
+  ----------------------------- */
 .now-bar {
   width: 100%;
   padding: 8px 8px;
@@ -201,8 +208,8 @@
 }
 
 /* ============================================================
-   TagManager (right side)
-   ============================================================ */
+     TagManager (right side)
+     ============================================================ */
 
 .tag-mgr {
   position: relative;
@@ -440,8 +447,9 @@
 
 .tag-mgr-hint {
   margin-top: 8px;
+  margin-bottom: 0; /* ✅ 改掉 */
+  padding-bottom: 6px; /* ✅ 用 padding 代替 margin，避免被裁 */
   font-size: 11px;
   color: var(--muted);
   text-align: center;
-  margin-bottom: 6px;
 }

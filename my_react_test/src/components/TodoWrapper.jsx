@@ -83,7 +83,15 @@ function TodoWrapper() {
   const [tags, setTags] = useState(() => {
     const raw = localStorage.getItem(TAGS_KEY);
     const arr = raw ? safeParse(raw, null) : null;
-    return Array.isArray(arr) && arr.length ? arr : DEFAULT_TAGS;
+
+    const base = Array.isArray(arr) && arr.length ? arr : DEFAULT_TAGS;
+
+    // ✅ normalize: remove "All" if it got saved, de-dup, trim
+    const cleaned = Array.from(
+      new Map(base.map((t) => [String(t).trim(), String(t).trim()])).values(),
+    ).filter((t) => t && t !== "All");
+
+    return cleaned.length ? cleaned : DEFAULT_TAGS;
   });
 
   const [activeTag, setActiveTag] = useState("All");
@@ -251,6 +259,95 @@ function TodoWrapper() {
       passive: false,
     });
     window.addEventListener("pointerup", pointerUpHandler);
+  };
+
+  // -----------------------------
+  // Drag reorder (TAG bar chips)
+  // -----------------------------
+  const tagDragRef = useRef(null);
+  const tagHoverRef = useRef(null);
+  const tagDraggingRef = useRef(false);
+  const tagPendingRef = useRef(null);
+  const suppressTagClickRef = useRef(false);
+
+  const TAG_DRAG_THRESHOLD = 6;
+
+  const reorderTags = (fromTag, toTag) => {
+    if (!fromTag || !toTag) return;
+    if (fromTag === toTag) return;
+
+    // ✅ "All" pinned, not draggable / not droppable
+    if (fromTag === "All" || toTag === "All") return;
+
+    setTags((prev) => {
+      const arr = [...prev];
+      const fromIndex = arr.indexOf(fromTag);
+      const toIndex = arr.indexOf(toTag);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+
+      const [moved] = arr.splice(fromIndex, 1);
+      arr.splice(toIndex, 0, moved);
+      return arr;
+    });
+  };
+
+  const tagPointerMoveHandler = (e) => {
+    const pending = tagPendingRef.current;
+    if (!pending) return;
+
+    if (!tagDraggingRef.current) {
+      const dx = e.clientX - pending.x;
+      const dy = e.clientY - pending.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < TAG_DRAG_THRESHOLD) return;
+
+      tagDraggingRef.current = true;
+      tagDragRef.current = pending.tag;
+      tagHoverRef.current = null;
+
+      suppressTagClickRef.current = true; // prevent accidental click after drag
+      document.body.classList.add("is-tag-reordering");
+      e.preventDefault();
+    }
+
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const chipEl = el?.closest?.("[data-tag]");
+    const toTag = chipEl?.getAttribute?.("data-tag");
+    if (!toTag) return;
+
+    const fromTag = tagDragRef.current;
+    if (!fromTag || fromTag === toTag) return;
+    if (tagHoverRef.current === toTag) return;
+
+    tagHoverRef.current = toTag;
+    reorderTags(fromTag, toTag);
+  };
+
+  const tagPointerUpHandler = () => {
+    tagPendingRef.current = null;
+    tagDraggingRef.current = false;
+    tagDragRef.current = null;
+    tagHoverRef.current = null;
+
+    document.body.classList.remove("is-tag-reordering");
+
+    window.removeEventListener("pointermove", tagPointerMoveHandler);
+    window.removeEventListener("pointerup", tagPointerUpHandler);
+
+    // allow click again after this tick
+    setTimeout(() => (suppressTagClickRef.current = false), 0);
+  };
+
+  const startTagPointerDrag = (tag, startX, startY) => {
+    if (isLocked) return;
+    if (!tag || tag === "All") return;
+
+    tagPendingRef.current = { tag, x: startX, y: startY };
+
+    window.addEventListener("pointermove", tagPointerMoveHandler, {
+      passive: false,
+    });
+    window.addEventListener("pointerup", tagPointerUpHandler);
   };
 
   // -----------------------------
@@ -1777,16 +1874,31 @@ function TodoWrapper() {
           <div className="now-section">
             <div className="tag-bar">
               <div className="tag-bar-left">
-                {["All", ...tags].map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    className={`tag-chip ${activeTag === t ? "active" : ""}`}
-                    onClick={() => setActiveTag(t)}
-                  >
-                    {t}
-                  </button>
-                ))}
+                {["All", ...tags].map((t) => {
+                  const isAll = t === "All";
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      data-tag={t}
+                      className={`tag-chip ${activeTag === t ? "active" : ""}`}
+                      onClick={() => {
+                        if (suppressTagClickRef.current) return;
+                        setActiveTag(t);
+                      }}
+                      onPointerDown={(e) => {
+                        if (isLocked) return;
+                        if (isAll) return; // All pinned
+                        // only left click / primary pointer
+                        if (e.button !== 0) return;
+                        startTagPointerDrag(t, e.clientX, e.clientY);
+                      }}
+                      title={isAll ? "All (pinned)" : "Drag to reorder"}
+                    >
+                      {t}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="tag-bar-right">
