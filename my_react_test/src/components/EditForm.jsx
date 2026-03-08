@@ -5,6 +5,7 @@ function EditForm({ todo, editTodo, toggleIsEditing, isLocked }) {
   const [task, setTask] = useState(todo.content);
   const [minutes, setMinutes] = useState(Number(todo.minutes ?? 25));
   const [timeOpen, setTimeOpen] = useState(false);
+  const isNote = todo.type === "note";
 
   const wrapRef = useRef(null); // ✅ NEW
 
@@ -13,7 +14,7 @@ function EditForm({ todo, editTodo, toggleIsEditing, isLocked }) {
   const commitSave = () => {
     if (isLocked) return;
     if (!isValid) return;
-    editTodo(todo.id, task.trim(), Number(minutes));
+    editTodo(todo.id, task.trim(), isNote ? null : Number(minutes));
   };
 
   // ✅ NEW: global Enter-to-save while edit mode is active
@@ -23,7 +24,7 @@ function EditForm({ todo, editTodo, toggleIsEditing, isLocked }) {
     const onDocKeyDown = (e) => {
       if (e.key !== "Enter") return;
       if (e.isComposing) return;
-      if (timeOpen) return; // MinuteSelect open 时不保存
+      if (!isNote && timeOpen) return; // MinuteSelect open 时不保存
       if (!isValid) return;
 
       const root = wrapRef.current;
@@ -58,14 +59,14 @@ function EditForm({ todo, editTodo, toggleIsEditing, isLocked }) {
 
     document.addEventListener("keydown", onDocKeyDown, true); // capture
     return () => document.removeEventListener("keydown", onDocKeyDown, true);
-  }, [isLocked, timeOpen, isValid, task, minutes]); // task/minutes 确保拿到最新值
+  }, [isLocked, timeOpen, isValid, task, minutes, isNote]); // task/minutes 确保拿到最新值
 
   // 你原本的 capture 可以留着（也可以删掉，因为上面已经全局接管）
   const onKeyDownCapture = (e) => {
     if (isLocked) return;
     if (e.key !== "Enter") return;
     if (e.isComposing) return;
-    if (timeOpen) return;
+    if (!isNote && timeOpen) return;
     e.preventDefault();
     commitSave();
   };
@@ -87,14 +88,16 @@ function EditForm({ todo, editTodo, toggleIsEditing, isLocked }) {
         autoFocus
       />
 
-      <MinuteSelect
-        value={minutes}
-        onChange={setMinutes}
-        disabled={isLocked}
-        ariaLabel="Edit minutes"
-        placement="edit"
-        onOpenChange={setTimeOpen}
-      />
+      {!isNote ? (
+        <MinuteSelect
+          value={minutes}
+          onChange={setMinutes}
+          disabled={isLocked}
+          ariaLabel="Edit minutes"
+          placement="edit"
+          onOpenChange={setTimeOpen}
+        />
+      ) : null}
 
       <button
         type="button"

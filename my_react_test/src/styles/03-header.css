@@ -3,8 +3,8 @@
    ============================================================ */
 .menu-header {
   text-align: left;
-  margin-bottom: 5px;
-  padding-top: 4px;
+  margin-bottom: 4px;
+  padding-top: 2px;
 }
 
 .header-row {
@@ -46,7 +46,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.2px;
@@ -73,7 +73,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   opacity: 0.8;
   line-height: 1;
@@ -106,13 +106,13 @@
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .header-badges .badge,
 .header-badges .badge-music {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
 }
 

@@ -11,6 +11,7 @@ const SETTINGS_KEY = "menubar_todo_settings_v1";
 const TITLE_KEY = "menubar_title_v1";
 const TAGS_KEY = "menubar_tags_v1";
 const TAG_COLORS_KEY = "menubar_tag_colors_v1";
+const ENTRY_FILTER_KEY = "menubar_entry_filter_v1";
 
 const DEFAULT_TAG_COLORS = {
   Study: "#9FB7EE",
@@ -29,6 +30,12 @@ function formatTime(seconds) {
 
 function nowMs() {
   return Date.now();
+}
+
+function startOfTodayMs() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
 }
 
 function safeParse(json, fallback) {
@@ -112,6 +119,9 @@ function TodoWrapper() {
   });
 
   const [activeTag, setActiveTag] = useState("All");
+  const [entryFilter, setEntryFilter] = useState(() => {
+    return localStorage.getItem(ENTRY_FILTER_KEY) || "all";
+  });
 
   const [accent, setAccent] = useState(() => {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -146,6 +156,7 @@ function TodoWrapper() {
         isEditing: false,
         minutes: 60,
         tag: "Life",
+        type: "task",
       },
       {
         content: "Add your first task",
@@ -154,6 +165,7 @@ function TodoWrapper() {
         isEditing: false,
         minutes: 25,
         tag: "Study",
+        type: "task",
       },
       {
         content: "Edit your task",
@@ -162,6 +174,7 @@ function TodoWrapper() {
         isEditing: false,
         minutes: 25,
         tag: "Exam",
+        type: "task",
       },
     ];
   });
@@ -372,7 +385,12 @@ function TodoWrapper() {
   // Derived lists
   // -----------------------------
   const normalizedTodos = useMemo(
-    () => todos.map((t) => ({ ...t, tag: t.tag ?? "Study" })),
+    () =>
+      todos.map((t) => ({
+        ...t,
+        tag: t.tag ?? "Study",
+        type: t.type === "note" ? "note" : "task",
+      })),
     [todos],
   );
 
@@ -386,15 +404,71 @@ function TodoWrapper() {
     [normalizedTodos],
   );
 
-  const visibleIncomplete = useMemo(() => {
+  const visibleIncompleteRaw = useMemo(() => {
     if (activeTag === "All") return allIncomplete;
     return allIncomplete.filter((t) => t.tag === activeTag);
   }, [allIncomplete, activeTag]);
 
-  const visibleCompleted = useMemo(() => {
+  const visibleCompletedRaw = useMemo(() => {
     if (activeTag === "All") return allCompleted;
     return allCompleted.filter((t) => t.tag === activeTag);
   }, [allCompleted, activeTag]);
+
+  const visibleIncomplete = useMemo(() => {
+    if (entryFilter === "tasks") {
+      return visibleIncompleteRaw.filter((t) => t.type === "task");
+    }
+    if (entryFilter === "notes") {
+      return visibleIncompleteRaw.filter((t) => t.type === "note");
+    }
+    return visibleIncompleteRaw;
+  }, [visibleIncompleteRaw, entryFilter]);
+
+  const visibleCompleted = useMemo(() => {
+    if (entryFilter === "notes") return [];
+    return visibleCompletedRaw.filter((t) => t.type === "task");
+  }, [visibleCompletedRaw, entryFilter]);
+
+  const visibleStartableTasks = useMemo(
+    () => visibleIncompleteRaw.filter((t) => t.type === "task"),
+    [visibleIncompleteRaw],
+  );
+
+  const todayStats = useMemo(() => {
+    const startMs = startOfTodayMs();
+    const completedTodayTasks = normalizedTodos.filter((t) => {
+      if (t.type !== "task") return false;
+      if (!t.isCompleted || !t.completedAt) return false;
+      const ts = new Date(t.completedAt).getTime();
+      return Number.isFinite(ts) && ts >= startMs;
+    });
+
+    const focusMinutes = completedTodayTasks.reduce(
+      (sum, t) => sum + Number(t.minutes ?? 0),
+      0,
+    );
+
+    const tagMinutesMap = completedTodayTasks.reduce((acc, t) => {
+      const k = t.tag ?? "Other";
+      acc[k] = (acc[k] ?? 0) + Number(t.minutes ?? 0);
+      return acc;
+    }, {});
+
+    const tagRows = Object.entries(tagMinutesMap)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+
+    return {
+      completedCount: completedTodayTasks.length,
+      focusMinutes,
+      tagRows,
+    };
+  }, [normalizedTodos]);
+
+  const topTagSummary = useMemo(() => {
+    if (todayStats.tagRows.length === 0) return "No focus yet";
+    return todayStats.tagRows.map(([tag, mins]) => `${tag} ${mins}m`).join(" · ");
+  }, [todayStats]);
 
   const activeTodo = useMemo(
     () => todos.find((t) => t.id === activeId) || null,
@@ -411,7 +485,13 @@ function TodoWrapper() {
     return `Running: ${name}-${tag}`;
   }, [status, activeTodo]);
 
-  const remainingCount = allIncomplete.length;
+  const remainingCount = visibleIncomplete.length;
+  const remainingLabel =
+    entryFilter === "tasks"
+      ? "TASKS REMAINING"
+      : entryFilter === "notes"
+        ? "NOTES REMAINING"
+        : "REMAINING";
 
   // -----------------------------
   // Notification mode (NEW)
@@ -1409,6 +1489,10 @@ function TodoWrapper() {
   }, [tagColors]);
 
   useEffect(() => {
+    localStorage.setItem(ENTRY_FILTER_KEY, entryFilter);
+  }, [entryFilter]);
+
+  useEffect(() => {
     setShowCompleted(false);
     setOpenTagPickerId(null);
   }, [activeTag]);
@@ -1420,7 +1504,8 @@ function TodoWrapper() {
   // -----------------------------
   // CRUD
   // -----------------------------
-  const addTodo = (content, minutes, tag) => {
+  const addTodo = (content, minutes, tag, type = "task") => {
+    const entryType = type === "note" ? "note" : "task";
     setTodos((prev) => [
       ...prev,
       {
@@ -1428,8 +1513,10 @@ function TodoWrapper() {
         id: Math.random(),
         isCompleted: false,
         isEditing: false,
-        minutes: minutes ?? 25,
+        minutes: entryType === "task" ? (minutes ?? 25) : null,
         tag: tag ?? "Study",
+        type: entryType,
+        completedAt: null,
       },
     ]);
   };
@@ -1442,9 +1529,16 @@ function TodoWrapper() {
   const toggleComplete = (id) => {
     if (isLocked) return;
     setTodos((prev) =>
-      prev.map((todo) =>
-        todo.id === id ? { ...todo, isCompleted: !todo.isCompleted } : todo,
-      ),
+      prev.map((todo) => {
+        if (todo.id !== id) return todo;
+        if (todo.type === "note") return todo;
+        const nextCompleted = !todo.isCompleted;
+        return {
+          ...todo,
+          isCompleted: nextCompleted,
+          completedAt: nextCompleted ? new Date().toISOString() : null,
+        };
+      }),
     );
   };
 
@@ -1466,7 +1560,7 @@ function TodoWrapper() {
           ? {
               ...t,
               content: newContent,
-              minutes: minutes ?? t.minutes,
+              minutes: t.type === "note" ? null : (minutes ?? t.minutes),
               isEditing: false,
             }
           : t,
@@ -1519,9 +1613,9 @@ function TodoWrapper() {
   };
 
   const canStartInCurrentMode = (todo) => {
-    if (!todo || todo.isCompleted) return false;
+    if (!todo || todo.isCompleted || todo.type === "note") return false;
     if (startMode === "free") return true;
-    return visibleIncomplete[0]?.id === todo.id;
+    return visibleStartableTasks[0]?.id === todo.id;
   };
 
   // -----------------------------
@@ -1571,7 +1665,14 @@ function TodoWrapper() {
 
     setTodos((prev) =>
       prev.map((t) =>
-        t.id === activeId ? { ...t, isCompleted: true, isEditing: false } : t,
+        t.id === activeId
+          ? {
+              ...t,
+              isCompleted: true,
+              isEditing: false,
+              completedAt: new Date().toISOString(),
+            }
+          : t,
       ),
     );
 
@@ -1998,11 +2099,15 @@ function TodoWrapper() {
           />
 
           <div className="now-bar">
-            <div className="now-bar-left">
+            <div className="now-bar-top">
               <span className="now-title">Now</span>
+
+              <span className="remaining-chip">
+                <b>{remainingCount}</b> <span>{remainingLabel}</span>
+              </span>
             </div>
 
-            <div className="now-bar-right">
+            <div className="now-bar-bottom">
               <button
                 type="button"
                 className="mode-chip"
@@ -2018,14 +2123,46 @@ function TodoWrapper() {
                 {startMode === "strict" ? "Mode: Strict" : "Mode: Free"}
               </button>
 
-              <span className="remaining-chip">
-                <b>{remainingCount}</b> <span>REMAINING</span>
-              </span>
+              <div className="entry-filter-row inline">
+                <button
+                  type="button"
+                  className={`entry-filter-chip ${entryFilter === "all" ? "active" : ""}`}
+                  onClick={() => setEntryFilter("all")}
+                >
+                  Everything
+                </button>
+                <button
+                  type="button"
+                  className={`entry-filter-chip ${entryFilter === "tasks" ? "active" : ""}`}
+                  onClick={() => setEntryFilter("tasks")}
+                >
+                  Tasks
+                </button>
+                <button
+                  type="button"
+                  className={`entry-filter-chip ${entryFilter === "notes" ? "active" : ""}`}
+                  onClick={() => setEntryFilter("notes")}
+                >
+                  Notes
+                </button>
+              </div>
 
               {runningLabel && (
                 <span className="running-chip">{runningLabel}</span>
               )}
             </div>
+          </div>
+
+          <div className="today-stats-inline">
+            <span className="stat-pill done">
+              <span className="k">Done</span> {todayStats.completedCount}
+            </span>
+            <span className="stat-pill focus">
+              <span className="k">Focus</span> {todayStats.focusMinutes}m
+            </span>
+            <span className="stat-pill tag">
+              <span className="k">Tag</span> {topTagSummary}
+            </span>
           </div>
 
           <div className="now-section">

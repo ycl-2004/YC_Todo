@@ -3,16 +3,18 @@
    ============================================================ */
 .create-form {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
 
-  height: 42px;
-  padding: 6px 10px;
+  min-height: 76px;
+  padding: 6px 8px;
 
-  border-radius: 999px;
+  border-radius: 30px;
   border: 2px solid var(--form-border);
   background: var(--surface-2);
   box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
 .create-form:focus-within {
@@ -32,14 +34,45 @@
   background: transparent;
 
   padding: 0 10px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1;
   color: var(--ink);
 }
 
-.create-form > input::placeholder {
+.create-form-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.create-form-top > input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+
+  border: none;
+  outline: none;
+  background: transparent;
+
+  padding: 0 10px;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.create-form-top > input::placeholder {
   color: color-mix(in srgb, var(--ink) 40%, transparent);
+}
+
+.create-form-bottom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  min-width: 0;
 }
 
 .create-form .minute-select {
@@ -55,8 +88,36 @@
   margin: 0;
 }
 
+.entry-type-switch {
+  height: 28px;
+  padding: 1px;
+  border-radius: 999px;
+  border: 1px solid var(--chip-border);
+  background: var(--surface-1);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.entry-type-btn {
+  height: 24px;
+  min-width: 42px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.entry-type-btn.active {
+  background: color-mix(in srgb, var(--accent) 34%, var(--surface-1));
+}
+
 /* add button (+) */
-.create-form > button {
+.create-form-top > button {
   width: 28px;
   height: 28px;
   border: none;
@@ -73,4 +134,9 @@
   font-weight: 900;
 
   margin-right: 2px;
+}
+
+.create-time-placeholder {
+  width: 64px;
+  height: 28px;
 }

@@ -137,10 +137,8 @@
 
 .todo.editing {
   background: color-mix(in srgb, var(--accent) 18%, var(--surface-3));
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent),
-    var(--shadow-md);
-  padding: 8px 10px;
+  box-shadow: var(--shadow-md);
+  padding: 6px 8px;
 }
 
 .todo-left {
@@ -360,6 +358,14 @@
 .icon-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.icon-btn.placeholder {
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .completed {

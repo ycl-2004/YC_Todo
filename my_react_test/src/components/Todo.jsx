@@ -139,6 +139,7 @@ function Todo({
 
   const disableRow = isLocked && !isActive;
   const isRunning = isActive && status === "running";
+  const isNote = todo.type === "note";
   const canEditTag =
     !todo.isCompleted && typeof onToggleTagPicker === "function";
   const canDrag = !isLocked && !todo.isCompleted;
@@ -216,7 +217,7 @@ function Todo({
             type="checkbox"
             checked={todo.isCompleted}
             onChange={() => toggleComplete(todo.id)}
-            disabled={disableRow || isLocked}
+            disabled={isNote || disableRow || isLocked}
           />
 
           <div className="todo-main">
@@ -254,11 +255,13 @@ function Todo({
                 {todo.tag}
               </span>
             )}
-            <span className="todo-meta">{todo.minutes}m</span>
+            <span className="todo-meta">
+              {isNote ? "Note" : `${todo.minutes}m`}
+            </span>
           </div>
 
           <div className="todo-actions">
-            {isActive ? (
+            {!isNote && isActive ? (
               <>
                 <button
                   className="icon-btn"
@@ -278,7 +281,7 @@ function Todo({
                   <MdCheckCircle />
                 </button>
               </>
-            ) : (
+            ) : !isNote ? (
               <button
                 className="icon-btn"
                 onClick={onStart}
@@ -290,6 +293,8 @@ function Todo({
               >
                 <MdPlayArrow />
               </button>
+            ) : (
+              <span className="icon-btn placeholder" aria-hidden="true" />
             )}
 
             <button

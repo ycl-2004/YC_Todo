@@ -1,4 +1,4 @@
-use objc2::rc::Retained;
+use objc2::{msg_send, rc::Retained, runtime::AnyObject};
 use objc2_app_kit::{NSPopover, NSStatusBarButton, NSWindow};
 use objc2_foundation::NSRectEdge;
 use tauri::{
@@ -131,6 +131,9 @@ impl<R: Runtime> AppExt<R> for AppHandle<R> {
                     NSRectEdge::MaxY,
                 );
             }
+            // Keep the popover above normal app/document windows,
+            // while IME/keyboard candidate windows can still stay above it.
+            set_popover_window_level(popover.as_ref());
         }
     }
     fn hide_popover(&self) {
@@ -144,6 +147,31 @@ impl<R: Runtime> AppExt<R> for AppHandle<R> {
         if unsafe { popover.isShown() } {
             unsafe { popover.performClose(None) };
         }
+    }
+}
+
+fn set_popover_window_level(popover: &NSPopover) {
+    // NSFloatingWindowLevel:
+    // above most regular document/browser windows, but typically below IME candidate panels.
+    const FLOATING_WINDOW_LEVEL: i64 = 3;
+
+    unsafe {
+        let vc_ptr: *mut AnyObject = msg_send![popover, contentViewController];
+        if vc_ptr.is_null() {
+            return;
+        }
+
+        let view_ptr: *mut AnyObject = msg_send![vc_ptr, view];
+        if view_ptr.is_null() {
+            return;
+        }
+
+        let win_ptr: *mut AnyObject = msg_send![view_ptr, window];
+        if win_ptr.is_null() {
+            return;
+        }
+
+        let _: () = msg_send![win_ptr, setLevel: FLOATING_WINDOW_LEVEL];
     }
 }
 
