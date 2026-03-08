@@ -44,6 +44,15 @@
   text-overflow: ellipsis;
 }
 
+.tag-dd-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: var(--tag-color, #b9c36b);
+  border: 1px solid color-mix(in srgb, var(--tag-color, #b9c36b) 70%, #fff 30%);
+}
+
 .tag-dd-caret {
   font-size: 11px;
   opacity: 0.75;
@@ -77,7 +86,7 @@
 
   display: flex;
   align-items: center;
-  gap: 8px; /* ✅ gap 小 */
+  gap: 7px; /* ✅ gap 小 */
 
   border-radius: 12px;
   border: 1px solid transparent;
@@ -103,12 +112,6 @@
   background: color-mix(in srgb, var(--accent) 75%, transparent);
   color: #fff;
   border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-}
-
-.tag-dd-tick {
-  width: 10px;
-  display: inline-flex;
-  justify-content: center;
 }
 
 /* disabled */

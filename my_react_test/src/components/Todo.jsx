@@ -14,6 +14,7 @@ function Todo({
   order,
   hideOrder,
   tags = [],
+  tagColors = {},
   deleteTodo,
   toggleComplete,
   toggleIsEditing,
@@ -45,6 +46,15 @@ function Todo({
     const current = todo.tag ?? "Study";
     return base.includes(current) ? base : [...base, current];
   }, [tags, todo.tag]);
+
+  const chipStyleFor = (tag) => {
+    const c = tagColors[tag];
+    if (!c) return undefined;
+    return {
+      background: `color-mix(in srgb, ${c} 26%, var(--chip-bg))`,
+      borderColor: `color-mix(in srgb, ${c} 52%, var(--chip-border))`,
+    };
+  };
 
   useEffect(() => {
     if (!isTagPickerOpen) return;
@@ -150,6 +160,7 @@ function Todo({
                   key={t}
                   type="button"
                   className={`todo-tag-option ${active ? "active" : ""}`}
+                  style={chipStyleFor(t)}
                   onClick={() => {
                     if (!active) onChangeTag?.(todo.id, t);
                     onCloseTagPicker?.();
@@ -223,6 +234,7 @@ function Todo({
                 <button
                   type="button"
                   className="todo-tag todo-tag-btn"
+                  style={chipStyleFor(todo.tag)}
                   ref={tagBtnRef}
                   disabled={isLocked}
                   onClick={onToggleTagPicker}
@@ -234,7 +246,9 @@ function Todo({
                 </button>
               </div>
             ) : (
-              <span className="todo-tag">{todo.tag}</span>
+              <span className="todo-tag" style={chipStyleFor(todo.tag)}>
+                {todo.tag}
+              </span>
             )}
             <span className="todo-meta">{todo.minutes}m</span>
           </div>

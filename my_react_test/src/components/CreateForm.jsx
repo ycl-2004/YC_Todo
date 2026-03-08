@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core"; // ✅ NEW
 import MinuteSelect from "./MinuteSelect";
 import TagSelect from "./TagSelect";
 
-function CreateForm({ addTodo, isLocked, tags }) {
+function CreateForm({ addTodo, isLocked, tags, tagColors = {} }) {
   const formRef = useRef(null);
 
   const [task, setTask] = useState("");
@@ -54,6 +54,7 @@ function CreateForm({ addTodo, isLocked, tags }) {
         onChange={setTag}
         options={tags}
         disabled={isLocked}
+        tagColors={tagColors}
       />
 
       <MinuteSelect

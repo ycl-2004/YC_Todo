@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-function TagSelect({ value, onChange, options = [], disabled }) {
+function TagSelect({ value, onChange, options = [], disabled, tagColors = {} }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
 
@@ -31,6 +31,11 @@ function TagSelect({ value, onChange, options = [], disabled }) {
         aria-label="Task tag"
         title="Tag"
       >
+        <span
+          className="tag-dd-dot"
+          style={{ "--tag-color": tagColors[value] ?? "#B9C36B" }}
+          aria-hidden="true"
+        />
         <span className="tag-dd-label">{value}</span>
         <span className="tag-dd-caret">▾</span>
       </button>
@@ -46,7 +51,11 @@ function TagSelect({ value, onChange, options = [], disabled }) {
                 className={`tag-dd-item ${active ? "active" : ""}`}
                 onClick={() => pick(t)}
               >
-                <span className="tag-dd-tick">{active ? "✓" : ""}</span>
+                <span
+                  className="tag-dd-dot"
+                  style={{ "--tag-color": tagColors[t] ?? "#B9C36B" }}
+                  aria-hidden="true"
+                />
                 <span>{t}</span>
               </button>
             );

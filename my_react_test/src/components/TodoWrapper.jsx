@@ -10,6 +10,15 @@ const STORAGE_KEY = "menubar_todo_v1";
 const SETTINGS_KEY = "menubar_todo_settings_v1";
 const TITLE_KEY = "menubar_title_v1";
 const TAGS_KEY = "menubar_tags_v1";
+const TAG_COLORS_KEY = "menubar_tag_colors_v1";
+
+const DEFAULT_TAG_COLORS = {
+  Study: "#9FB7EE",
+  Exam: "#D8B18A",
+  Life: "#B890D8",
+  Daily: "#B9C36B",
+  Other: "#D89FBC",
+};
 
 function formatTime(seconds) {
   const s = Math.max(0, seconds);
@@ -92,6 +101,14 @@ function TodoWrapper() {
     ).filter((t) => t && t !== "All");
 
     return cleaned.length ? cleaned : DEFAULT_TAGS;
+  });
+
+  const [tagColors, setTagColors] = useState(() => {
+    const raw = localStorage.getItem(TAG_COLORS_KEY);
+    const saved = raw ? safeParse(raw, null) : null;
+    const base = saved && typeof saved === "object" ? saved : {};
+    const merged = { ...DEFAULT_TAG_COLORS, ...base };
+    return merged;
   });
 
   const [activeTag, setActiveTag] = useState("All");
@@ -1359,6 +1376,33 @@ function TodoWrapper() {
   }, [tags]);
 
   useEffect(() => {
+    setTagColors((prev) => {
+      const next = { ...prev };
+      let changed = false;
+
+      tags.forEach((t) => {
+        if (!next[t]) {
+          next[t] = DEFAULT_TAG_COLORS[t] ?? "#B9C36B";
+          changed = true;
+        }
+      });
+
+      Object.keys(next).forEach((k) => {
+        if (!tags.includes(k)) {
+          delete next[k];
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [tags]);
+
+  useEffect(() => {
+    localStorage.setItem(TAG_COLORS_KEY, JSON.stringify(tagColors));
+  }, [tagColors]);
+
+  useEffect(() => {
     setShowCompleted(false);
     setOpenTagPickerId(null);
   }, [activeTag]);
@@ -1431,6 +1475,23 @@ function TodoWrapper() {
     setTodos((prev) =>
       prev.map((t) => (t.id === id ? { ...t, tag: nextTag } : t)),
     );
+  };
+
+  const setTagColor = (tag, color) => {
+    if (!tag || !color) return;
+    setTagColors((prev) => ({ ...prev, [tag]: color }));
+  };
+
+  const chipStyleFor = (tag, active = false) => {
+    if (tag === "All") return undefined;
+    const c = tagColors[tag];
+    if (!c) return undefined;
+    return {
+      background: active
+        ? `color-mix(in srgb, ${c} 38%, var(--chip-bg))`
+        : `color-mix(in srgb, ${c} 20%, var(--chip-bg))`,
+      borderColor: `color-mix(in srgb, ${c} 56%, var(--chip-border))`,
+    };
   };
 
   // -----------------------------
@@ -1894,7 +1955,12 @@ function TodoWrapper() {
             </div>
           </header>
 
-          <CreateForm addTodo={addTodo} isLocked={isLocked} tags={tags} />
+          <CreateForm
+            addTodo={addTodo}
+            isLocked={isLocked}
+            tags={tags}
+            tagColors={tagColors}
+          />
 
           <div className="now-bar">
             <div className="now-bar-left">
@@ -1923,6 +1989,7 @@ function TodoWrapper() {
                       type="button"
                       data-tag={t}
                       className={`tag-chip ${activeTag === t ? "active" : ""}`}
+                      style={chipStyleFor(t, activeTag === t)}
                       onClick={() => {
                         if (suppressTagClickRef.current) return;
                         setActiveTag(t);
@@ -1949,6 +2016,8 @@ function TodoWrapper() {
                   activeTag={activeTag}
                   setActiveTag={setActiveTag}
                   disabled={isLocked}
+                  tagColors={tagColors}
+                  setTagColor={setTagColor}
                 />
               </div>
             </div>
@@ -1965,6 +2034,7 @@ function TodoWrapper() {
                     todo={todo}
                     order={index + 1}
                     tags={tags}
+                    tagColors={tagColors}
                     deleteTodo={deleteTodo}
                     toggleComplete={toggleComplete}
                     toggleIsEditing={toggleIsEditing}
@@ -2018,6 +2088,7 @@ function TodoWrapper() {
                     todo={todo}
                     hideOrder
                     tags={tags}
+                    tagColors={tagColors}
                     deleteTodo={deleteTodo}
                     toggleComplete={toggleComplete}
                     toggleIsEditing={toggleIsEditing}

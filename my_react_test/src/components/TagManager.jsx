@@ -4,11 +4,31 @@ function normalizeTag(s) {
   return String(s ?? "").trim();
 }
 
-function TagManager({ tags = [], setTags, activeTag, setActiveTag, disabled }) {
+const TAG_SWATCHES = [
+  "#B9C36B",
+  "#B890D8",
+  "#D8B18A",
+  "#9FB7EE",
+  "#D89FBC",
+  "#7FC8A9",
+  "#E39D9D",
+  "#AFA7D8",
+];
+
+function TagManager({
+  tags = [],
+  setTags,
+  activeTag,
+  setActiveTag,
+  disabled,
+  tagColors = {},
+  setTagColor,
+}) {
   const [open, setOpen] = useState(false);
   const [newTag, setNewTag] = useState("");
   const [editing, setEditing] = useState(null); // tag string
   const [draft, setDraft] = useState("");
+  const [paletteOpenTag, setPaletteOpenTag] = useState(null);
 
   const wrapRef = useRef(null);
 
@@ -20,6 +40,7 @@ function TagManager({ tags = [], setTags, activeTag, setActiveTag, disabled }) {
       if (wrapRef.current.contains(e.target)) return;
       setOpen(false);
       setEditing(null);
+      setPaletteOpenTag(null);
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
@@ -47,6 +68,7 @@ function TagManager({ tags = [], setTags, activeTag, setActiveTag, disabled }) {
   const startRename = (t) => {
     setEditing(t);
     setDraft(t);
+    setPaletteOpenTag(null);
   };
 
   const commitRename = () => {
@@ -65,6 +87,7 @@ function TagManager({ tags = [], setTags, activeTag, setActiveTag, disabled }) {
     if (activeTag === editing) setActiveTag(next);
 
     setEditing(null);
+    setPaletteOpenTag(null);
   };
 
   const removeTag = (t) => {
@@ -72,6 +95,7 @@ function TagManager({ tags = [], setTags, activeTag, setActiveTag, disabled }) {
 
     // if deleting active -> go to All
     if (activeTag === t) setActiveTag("All");
+    if (paletteOpenTag === t) setPaletteOpenTag(null);
   };
 
   return (
@@ -97,6 +121,7 @@ function TagManager({ tags = [], setTags, activeTag, setActiveTag, disabled }) {
               onClick={() => {
                 setOpen(false);
                 setEditing(null);
+                setPaletteOpenTag(null);
               }}
               aria-label="Close"
               title="Close"
@@ -166,7 +191,19 @@ function TagManager({ tags = [], setTags, activeTag, setActiveTag, disabled }) {
                     </>
                   ) : (
                     <>
-                      <div className="tag-mgr-name">{t}</div>
+                      <div className="tag-mgr-name-row">
+                        <button
+                          type="button"
+                          className="tag-mgr-color-dot"
+                          style={{ "--tag-color": tagColors[t] ?? "#B9C36B" }}
+                          onClick={() =>
+                            setPaletteOpenTag((prev) => (prev === t ? null : t))
+                          }
+                          title="Change color"
+                          aria-label={`Change color for ${t}`}
+                        />
+                        <div className="tag-mgr-name">{t}</div>
+                      </div>
                       <div className="tag-mgr-actions">
                         <button
                           type="button"
@@ -185,6 +222,29 @@ function TagManager({ tags = [], setTags, activeTag, setActiveTag, disabled }) {
                           Delete
                         </button>
                       </div>
+                      {paletteOpenTag === t && (
+                        <div className="tag-mgr-palette" role="radiogroup">
+                          {TAG_SWATCHES.map((c) => {
+                            const active =
+                              (tagColors[t] ?? "").toLowerCase() ===
+                              c.toLowerCase();
+                            return (
+                              <button
+                                key={`${t}-${c}`}
+                                type="button"
+                                className={`tag-mgr-swatch ${active ? "active" : ""}`}
+                                style={{ "--swatch-color": c }}
+                                aria-label={`${t} ${c}`}
+                                title={c}
+                                onClick={() => {
+                                  setTagColor?.(t, c);
+                                  setPaletteOpenTag(null);
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
