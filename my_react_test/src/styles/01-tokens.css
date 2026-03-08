@@ -47,6 +47,8 @@
   --surface-1: var(--glass);
   --surface-2: color-mix(in srgb, var(--bg1) 35%, transparent);
   --surface-3: var(--glass-strong);
+  --layer-bg: color-mix(in srgb, var(--bg1) 92%, white 8%);
+  --layer-border: color-mix(in srgb, var(--accent) 24%, rgba(0, 0, 0, 0.12));
 
   --chip-bg: color-mix(in srgb, var(--surface-3) 74%, transparent);
   --chip-bg-strong: color-mix(in srgb, var(--surface-3) 86%, transparent);
@@ -107,6 +109,8 @@
   --surface-1: var(--glass);
   --surface-2: color-mix(in srgb, var(--glass) 78%, transparent);
   --surface-3: var(--glass-strong);
+  --layer-bg: color-mix(in srgb, var(--bg1) 90%, rgba(0, 0, 0, 0.1));
+  --layer-border: color-mix(in srgb, var(--accent) 28%, rgba(255, 255, 255, 0.2));
 
   --chip-bg: color-mix(in srgb, var(--surface-3) 78%, transparent);
   --chip-bg-strong: color-mix(in srgb, var(--surface-3) 88%, transparent);
@@ -200,6 +204,8 @@
     --surface-1: var(--glass);
     --surface-2: rgba(255, 255, 255, 0.22);
     --surface-3: var(--glass-strong);
+    --layer-bg: rgba(243, 235, 246, 0.98);
+    --layer-border: rgba(203, 174, 193, 0.66);
 
     --chip-bg: rgba(255, 255, 255, 0.36);
     --chip-bg-strong: rgba(255, 255, 255, 0.48);
@@ -240,6 +246,8 @@
     --surface-1: var(--glass);
     --surface-2: rgba(255, 255, 255, 0.08);
     --surface-3: var(--glass-strong);
+    --layer-bg: rgba(86, 80, 98, 0.97);
+    --layer-border: rgba(195, 165, 186, 0.5);
 
     --chip-bg: rgba(255, 255, 255, 0.1);
     --chip-bg-strong: rgba(255, 255, 255, 0.14);

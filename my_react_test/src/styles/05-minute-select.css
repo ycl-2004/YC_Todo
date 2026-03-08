@@ -2,11 +2,11 @@
 .minute-pop {
   padding: 8px;
   border-radius: 20px;
-  background: var(--surface-3);
-  border: 1px solid var(--stroke);
+  background: var(--layer-bg);
+  border: 1px solid var(--layer-border);
   box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 9999;
 }
 .minute-pop-header {

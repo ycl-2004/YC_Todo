@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef } from "react";
 import {
   MdDelete,
   MdEdit,
@@ -11,10 +12,12 @@ function Todo({
   todo,
   order,
   hideOrder,
+  tags = [],
   deleteTodo,
   toggleComplete,
   toggleIsEditing,
   editTodo,
+  onChangeTag,
   isLocked,
   isActive,
   canStart,
@@ -22,10 +25,40 @@ function Todo({
   onStart,
   onPause,
   onFinish,
+  isTagPickerOpen,
+  onToggleTagPicker,
+  onCloseTagPicker,
 
   // ✅ Pointer-drag reorder（用 wrapper 那套）
   onPointerDragStart,
 }) {
+  const tagWrapRef = useRef(null);
+
+  const tagOptions = useMemo(() => {
+    const base = Array.isArray(tags) ? tags : [];
+    const curr = todo.tag ?? "Study";
+    return base.includes(curr) ? base : [...base, curr];
+  }, [tags, todo.tag]);
+
+  useEffect(() => {
+    if (!isTagPickerOpen) return;
+
+    const onDown = (e) => {
+      if (!tagWrapRef.current) return;
+      if (tagWrapRef.current.contains(e.target)) return;
+      onCloseTagPicker?.();
+    };
+
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [isTagPickerOpen, onCloseTagPicker]);
+
+  useEffect(() => {
+    if (!isTagPickerOpen) return;
+    if (!isLocked) return;
+    onCloseTagPicker?.();
+  }, [isLocked, isTagPickerOpen, onCloseTagPicker]);
+
   if (todo.isEditing) {
     return (
       <div className="todo editing">
@@ -48,7 +81,7 @@ function Todo({
     <div
       className={`todo ${todo.isCompleted ? "completed" : ""} ${
         disableRow ? "locked" : ""
-      }`}
+      } ${isTagPickerOpen ? "tag-picker-open" : ""}`}
       data-todo-id={String(todo.id)}
       onPointerDown={(e) => {
         if (!canDrag) return;
@@ -92,7 +125,42 @@ function Todo({
 
       <div className="todo-right">
         <div className="todo-badge-stack">
-          <span className="todo-tag">{todo.tag}</span>
+          <div
+            className={`todo-tag-wrap ${isTagPickerOpen ? "open" : ""}`}
+            ref={tagWrapRef}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="todo-tag todo-tag-btn"
+              disabled={isLocked}
+              onClick={onToggleTagPicker}
+              title={isLocked ? "Tag locked while timer is active" : "Edit tag"}
+            >
+              {todo.tag}
+            </button>
+
+            <div className={`todo-tag-picker ${isTagPickerOpen ? "open" : ""}`}>
+              {tagOptions.map((t) => {
+                const active = t === todo.tag;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`todo-tag-option ${active ? "active" : ""}`}
+                    onClick={() => {
+                      if (!active) onChangeTag?.(todo.id, t);
+                      onCloseTagPicker?.();
+                    }}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <span className="todo-meta">{todo.minutes}m</span>
         </div>
         <div className="todo-actions">

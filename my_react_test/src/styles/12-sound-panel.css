@@ -10,12 +10,12 @@
   padding: 10px; /* 12 → 10 */
   border-radius: 14px;
 
-  background: var(--surface-3);
-  border: 1px solid var(--stroke);
+  background: var(--layer-bg);
+  border: 1px solid var(--layer-border);
   color: var(--ink);
 
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 
   box-shadow: var(--shadow-lg);
   overflow: hidden;
@@ -92,8 +92,8 @@
   height: 18px;
   border-radius: 999px;
 
-  background: var(--surface-3);
-  border: 1px solid var(--stroke);
+  background: var(--layer-bg);
+  border: 1px solid var(--layer-border);
   box-shadow: var(--shadow-sm);
 
   cursor: pointer;
@@ -119,8 +119,8 @@
   height: 18px;
   border-radius: 999px;
 
-  background: var(--surface-3);
-  border: 1px solid var(--stroke);
+  background: var(--layer-bg);
+  border: 1px solid var(--layer-border);
   box-shadow: var(--shadow-sm);
 
   cursor: pointer;

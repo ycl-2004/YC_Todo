@@ -177,6 +177,7 @@ function TodoWrapper() {
   });
 
   const isLocked = status === "running" || status === "paused";
+  const [openTagPickerId, setOpenTagPickerId] = useState(null);
 
   // -----------------------------
   // Drag reorder
@@ -1361,6 +1362,10 @@ function TodoWrapper() {
     setShowCompleted(false);
   }, [activeTag]);
 
+  useEffect(() => {
+    if (isLocked) setOpenTagPickerId(null);
+  }, [isLocked]);
+
   // -----------------------------
   // CRUD
   // -----------------------------
@@ -1415,6 +1420,15 @@ function TodoWrapper() {
             }
           : t,
       ),
+    );
+  };
+
+  const changeTodoTag = (id, nextTag) => {
+    if (isLocked) return;
+    if (!nextTag) return;
+
+    setTodos((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, tag: nextTag } : t)),
     );
   };
 
@@ -1629,42 +1643,46 @@ function TodoWrapper() {
           <header className="menu-header">
             <div className="header-row">
               <div className="title-wrap">
-                {editing === "title" ? (
-                  <input
-                    className="title-input"
-                    value={title}
-                    autoFocus
-                    onChange={(e) => setTitle(e.target.value)}
-                    onBlur={() => setEditing(null)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") setEditing(null);
-                      if (e.key === "Escape") setEditing(null);
-                    }}
-                  />
-                ) : (
-                  <h1 onDoubleClick={() => setEditing("title")}>{title}</h1>
-                )}
+                <div className="title-slot">
+                  {editing === "title" ? (
+                    <input
+                      className="title-input"
+                      value={title}
+                      autoFocus
+                      onChange={(e) => setTitle(e.target.value)}
+                      onBlur={() => setEditing(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") setEditing(null);
+                        if (e.key === "Escape") setEditing(null);
+                      }}
+                    />
+                  ) : (
+                    <h1 onDoubleClick={() => setEditing("title")}>{title}</h1>
+                  )}
+                </div>
 
-                {editing === "subtitle" ? (
-                  <input
-                    className="subtitle-input"
-                    value={subtitle}
-                    autoFocus
-                    onChange={(e) => setSubtitle(e.target.value)}
-                    onBlur={() => setEditing(null)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") setEditing(null);
-                      if (e.key === "Escape") setEditing(null);
-                    }}
-                  />
-                ) : (
-                  <span
-                    className="subtitle"
-                    onDoubleClick={() => setEditing("subtitle")}
-                  >
-                    {subtitle}
-                  </span>
-                )}
+                <div className="subtitle-slot">
+                  {editing === "subtitle" ? (
+                    <input
+                      className="subtitle-input"
+                      value={subtitle}
+                      autoFocus
+                      onChange={(e) => setSubtitle(e.target.value)}
+                      onBlur={() => setEditing(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") setEditing(null);
+                        if (e.key === "Escape") setEditing(null);
+                      }}
+                    />
+                  ) : (
+                    <span
+                      className="subtitle"
+                      onDoubleClick={() => setEditing("subtitle")}
+                    >
+                      {subtitle}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div
@@ -1945,10 +1963,12 @@ function TodoWrapper() {
                     key={todo.id}
                     todo={todo}
                     order={index + 1}
+                    tags={tags}
                     deleteTodo={deleteTodo}
                     toggleComplete={toggleComplete}
                     toggleIsEditing={toggleIsEditing}
                     editTodo={editTodo}
+                    onChangeTag={changeTodoTag}
                     isLocked={isLocked}
                     isActive={isActive}
                     canStart={canStart}
@@ -1961,6 +1981,13 @@ function TodoWrapper() {
                     onPause={pauseActive}
                     onFinish={() => finishActive(false)}
                     onPointerDragStart={startPointerDrag}
+                    isTagPickerOpen={openTagPickerId === todo.id}
+                    onToggleTagPicker={() =>
+                      setOpenTagPickerId((prev) =>
+                        prev === todo.id ? null : todo.id,
+                      )
+                    }
+                    onCloseTagPicker={() => setOpenTagPickerId(null)}
                   />
                 );
               })}
@@ -1989,10 +2016,12 @@ function TodoWrapper() {
                     key={todo.id}
                     todo={todo}
                     hideOrder
+                    tags={tags}
                     deleteTodo={deleteTodo}
                     toggleComplete={toggleComplete}
                     toggleIsEditing={toggleIsEditing}
                     editTodo={editTodo}
+                    onChangeTag={changeTodoTag}
                     isLocked={isLocked}
                     isActive={todo.id === activeId}
                     canStart={false}
@@ -2000,6 +2029,13 @@ function TodoWrapper() {
                     onStart={() => {}}
                     onPause={() => {}}
                     onFinish={() => {}}
+                    isTagPickerOpen={openTagPickerId === todo.id}
+                    onToggleTagPicker={() =>
+                      setOpenTagPickerId((prev) =>
+                        prev === todo.id ? null : todo.id,
+                      )
+                    }
+                    onCloseTagPicker={() => setOpenTagPickerId(null)}
                   />
                 ))}
               </div>
