@@ -17,7 +17,7 @@
 
   font-weight: 900;
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 
   transition:
     transform 120ms var(--ease),
@@ -45,6 +45,8 @@
   max-height: 220px;
   overflow-y: auto;
   padding-right: 4px;
+  padding-bottom: 20px;
+  scroll-padding-bottom: 20px;
 
   display: flex;
   flex-direction: column;
@@ -59,4 +61,10 @@
 :root[data-theme="dark"] .collapse-btn {
   box-shadow: none;
   border-color: color-mix(in srgb, var(--card-border) 72%, transparent);
+}
+
+:root[data-theme="light"] .collapse-btn {
+  background: color-mix(in srgb, var(--surface-1) 84%, white 16%);
+  border-color: color-mix(in srgb, var(--card-border) 70%, transparent);
+  box-shadow: none;
 }

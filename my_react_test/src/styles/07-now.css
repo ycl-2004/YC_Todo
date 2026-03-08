@@ -22,7 +22,7 @@
   gap: 8px;
 
   padding: 4px 6px;
-  margin: 4px 0 8px;
+  margin: 2px 0 8px;
 
   border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--card-border) 45%, transparent);
@@ -257,7 +257,7 @@
 }
 
 .today-stats-inline {
-  margin-top: 2px;
+  margin-top: 1px;
   min-width: 0;
 }
 
@@ -305,6 +305,19 @@
 .entry-filter-chip.active {
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
   background: color-mix(in srgb, var(--accent) 34%, var(--chip-bg));
+}
+
+/* Light mode: add clearer section hierarchy */
+:root[data-theme="light"] .now-bar {
+  background: color-mix(in srgb, var(--surface-1) 88%, white 12%);
+  border-color: color-mix(in srgb, var(--card-border) 68%, transparent);
+  box-shadow: none;
+}
+
+:root[data-theme="light"] .now-section .tag-bar {
+  background: color-mix(in srgb, var(--surface-2) 78%, white 22%);
+  border-color: color-mix(in srgb, var(--card-border) 62%, transparent);
+  box-shadow: none;
 }
 
 /* ============================================================

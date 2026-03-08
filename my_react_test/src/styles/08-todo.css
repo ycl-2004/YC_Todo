@@ -16,7 +16,7 @@
 
   border-radius: var(--radius-lg);
   border: 1px solid var(--card-border);
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
 
   background: linear-gradient(180deg, var(--todo-grad-1), var(--todo-grad-2));
 
@@ -71,7 +71,7 @@
 
   background: color-mix(in srgb, var(--bg1) 94%, white 6%);
   border: 1px solid color-mix(in srgb, var(--card-border) 92%, white 8%);
-  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.25);
+  box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 
@@ -137,7 +137,7 @@
 
 .todo.editing {
   background: color-mix(in srgb, var(--accent) 18%, var(--surface-3));
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
   padding: 6px 8px;
 }
 
@@ -269,7 +269,7 @@
   border-radius: 12px;
   border: 1px solid var(--layer-border);
   background: var(--layer-bg);
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
 
   display: flex;
   flex-direction: column;
@@ -384,7 +384,7 @@
 }
 
 :root[data-theme="dark"] .todo {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+  box-shadow: none;
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--todo-grad-1) 76%, transparent),
@@ -393,9 +393,25 @@
 }
 
 :root[data-theme="dark"] .todo.editing {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+  box-shadow: none;
 }
 
 :root[data-theme="dark"] .todo:hover {
   filter: brightness(1.01);
+}
+
+/* Light mode: restore card layering without heavy contrast */
+:root[data-theme="light"] .todo {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--todo-grad-1) 82%, white 18%),
+    color-mix(in srgb, var(--todo-grad-2) 82%, white 18%)
+  );
+  border-color: color-mix(in srgb, var(--card-border) 72%, transparent);
+  box-shadow: none;
+}
+
+:root[data-theme="light"] .todo:hover {
+  filter: brightness(1.01);
+  transform: none;
 }

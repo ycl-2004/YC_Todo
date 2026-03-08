@@ -2,23 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 const QUICK_PRESETS = [25, 45, 60, 90];
-
-// Total minutes settings (value is STILL total minutes)
 const MIN_TOTAL = 1;
 const MAX_TOTAL = 600;
 
-// Wheel settings
-const ITEM_H = 36;
-const WHEEL_VISIBLE = 5; // keep odd
-const CENTER_ROW = Math.floor(WHEEL_VISIBLE / 2); // 2
-const WHEEL_PAD = CENTER_ROW * ITEM_H; // 72px top/bottom pad to make 58/59 easier
-
 function clamp(n, a, b) {
   return Math.max(a, Math.min(n, b));
-}
-
-function buildRange(min, max) {
-  return Array.from({ length: max - min + 1 }, (_, i) => min + i);
 }
 
 function splitTotalMinutes(total) {
@@ -36,40 +24,24 @@ function formatBtnLabel(total) {
 }
 
 export default function MinuteSelect({
-  value, // total minutes
+  value,
   onChange,
   disabled,
   ariaLabel = "Minutes",
-
-  // positioning
-  anchorRef, // optional external anchor
-  placement = "anchor", // "anchor" | "edit"
-
-  // refs + callbacks
-  buttonRef, // optional ref passed from parent
-  onDone, // optional: Enter while open => close + notify parent (not used in your EditForm now)
-
-  onOpenChange, // ✅ NEW: report open state to parent
+  anchorRef,
+  placement = "anchor",
+  buttonRef,
+  onDone,
+  onOpenChange,
 }) {
-  const MAX_HOURS = Math.floor(MAX_TOTAL / 60);
-  const hoursOptions = useMemo(() => buildRange(0, MAX_HOURS), [MAX_HOURS]);
-  const minutesOptions = useMemo(() => buildRange(0, 59), []);
-
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 186 });
+  const [inputMinutes, setInputMinutes] = useState(String(value ?? 25));
 
   const rootRef = useRef(null);
-  const hourWheelRef = useRef(null);
-  const minWheelRef = useRef(null);
+  const dialRef = useRef(null);
+  const draggingRef = useRef(false);
 
-  const programmaticRef = useRef(false);
-  const rafRef = useRef(0);
-
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 180 });
-
-  const [hourHighlightTop, setHourHighlightTop] = useState(CENTER_ROW * ITEM_H);
-  const [minHighlightTop, setMinHighlightTop] = useState(CENTER_ROW * ITEM_H);
-
-  // ✅ IMPORTANT: always use this to open/close so parent can track timeOpen
   const setOpenSafe = (next) => {
     setOpen(next);
     onOpenChange?.(next);
@@ -81,9 +53,9 @@ export default function MinuteSelect({
   };
 
   const updatePosition = () => {
-    const popW = 180;
-    const popH = 290;
-    const gap = 6;
+    const popW = 186;
+    const popH = 230;
+    const gap = 8;
 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
@@ -93,11 +65,8 @@ export default function MinuteSelect({
 
     const r = el.getBoundingClientRect();
 
-    // ✅ placement="edit": show under the time button (and clamp)
     if (placement === "edit") {
-      const gap2 = 10;
-
-      let top = Math.round(r.bottom + gap2);
+      let top = Math.round(r.bottom + gap);
       let left = Math.round(r.left + r.width / 2 - popW / 2);
 
       left = Math.max(8, Math.min(left, vw - popW - 8));
@@ -107,7 +76,6 @@ export default function MinuteSelect({
       return;
     }
 
-    // ✅ default dropdown behavior (anchor)
     const openUp = vh - r.bottom < popH + gap;
 
     let top = openUp ? r.top - gap - popH : r.bottom + gap;
@@ -119,7 +87,10 @@ export default function MinuteSelect({
     setPos({ top, left, width: popW });
   };
 
-  // close on outside click
+  useEffect(() => {
+    setInputMinutes(String(clamp(Number(value) || MIN_TOTAL, MIN_TOTAL, MAX_TOTAL)));
+  }, [value]);
+
   useEffect(() => {
     const onDown = (e) => {
       const pop = document.getElementById("minute-popover");
@@ -132,8 +103,6 @@ export default function MinuteSelect({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ KEYBOARD (works even when focus is inside the portal)
-  // capture + stopPropagation => EditForm will NOT receive Enter when picker is open
   useEffect(() => {
     if (!open || disabled) return;
 
@@ -162,217 +131,96 @@ export default function MinuteSelect({
         const next = clamp(
           Number(value) + (e.key === "ArrowDown" ? 1 : -1),
           MIN_TOTAL,
-          MAX_TOTAL
+          MAX_TOTAL,
         );
-
         onChange(next);
-
-        const { h, m } = splitTotalMinutes(next);
-        scrollToIdx(hourWheelRef.current, h, "smooth");
-        scrollToIdx(minWheelRef.current, m, "smooth");
       }
     };
 
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [open, disabled, value, onChange, onDone, onOpenChange]);
+  }, [open, disabled, value, onChange, onDone]);
 
-  // wheel scroll speed boost
-  useEffect(() => {
-    if (!open) return;
-
-    const SPEED = 2.4;
-
-    const bindWheel = (el) => {
-      if (!el) return () => {};
-      const onWheel = (e) => {
-        if (e.ctrlKey) return;
-        e.preventDefault();
-        el.scrollTop += e.deltaY * SPEED;
-      };
-      el.addEventListener("wheel", onWheel, { passive: false });
-      return () => el.removeEventListener("wheel", onWheel);
-    };
-
-    const offH = bindWheel(hourWheelRef.current);
-    const offM = bindWheel(minWheelRef.current);
-
-    return () => {
-      offH();
-      offM();
-    };
-  }, [open]);
-
-  const maxScrollTop = (wheel) => {
-    if (!wheel) return 0;
-    return wheel.scrollHeight - wheel.clientHeight;
-  };
-
-  const idxFromScrollTop = (optionsLen, scrollTop) => {
-    const idx = Math.round(
-      (scrollTop - WHEEL_PAD + CENTER_ROW * ITEM_H) / ITEM_H
-    );
-    return clamp(idx, 0, optionsLen - 1);
-  };
-
-  const scrollToIdx = (wheel, idx, behavior = "auto") => {
-    if (!wheel) return;
-
-    const maxScroll = maxScrollTop(wheel);
-    const ideal = WHEEL_PAD + idx * ITEM_H - CENTER_ROW * ITEM_H;
-    const top = clamp(ideal, 0, Math.max(0, maxScroll));
-
-    programmaticRef.current = true;
-    wheel.scrollTo({ top, behavior });
-
-    window.setTimeout(
-      () => {
-        programmaticRef.current = false;
-      },
-      behavior === "auto" ? 0 : 220
-    );
-  };
-
-  const updateHighlight = (wheel, optionsLen, setHighlightTop) => {
-    if (!wheel) return;
-
-    const idx = idxFromScrollTop(optionsLen, wheel.scrollTop);
-    const itemTop = WHEEL_PAD + idx * ITEM_H - wheel.scrollTop;
-
-    const maxScroll = maxScrollTop(wheel);
-    const ideal = WHEEL_PAD + idx * ITEM_H - CENTER_ROW * ITEM_H;
-    const clamped = clamp(ideal, 0, Math.max(0, maxScroll));
-    const isEdge = clamped !== ideal;
-
-    setHighlightTop(isEdge ? itemTop : WHEEL_PAD + CENTER_ROW * ITEM_H);
-  };
-
-  const setByHM = (h, m, behavior = "auto") => {
-    const total = clamp(h * 60 + m, MIN_TOTAL, MAX_TOTAL);
-    onChange(total);
-
-    const { h: hh, m: mm } = splitTotalMinutes(total);
-    scrollToIdx(hourWheelRef.current, hh, behavior);
-    scrollToIdx(minWheelRef.current, mm, behavior);
-
-    updateHighlight(
-      hourWheelRef.current,
-      hoursOptions.length,
-      setHourHighlightTop
-    );
-    updateHighlight(
-      minWheelRef.current,
-      minutesOptions.length,
-      setMinHighlightTop
-    );
-  };
-
-  // open: position + center wheels
   useEffect(() => {
     if (!open) return;
 
     updatePosition();
     window.addEventListener("resize", updatePosition);
+    document.addEventListener("scroll", updatePosition, true);
 
-    requestAnimationFrame(() => {
-      const { h, m } = splitTotalMinutes(value);
-      scrollToIdx(hourWheelRef.current, h, "auto");
-      scrollToIdx(minWheelRef.current, m, "auto");
-
-      updateHighlight(
-        hourWheelRef.current,
-        hoursOptions.length,
-        setHourHighlightTop
-      );
-      updateHighlight(
-        minWheelRef.current,
-        minutesOptions.length,
-        setMinHighlightTop
-      );
-    });
-
-    return () => window.removeEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      document.removeEventListener("scroll", updatePosition, true);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // value change: sync wheels
-  useEffect(() => {
-    if (!open) return;
-    requestAnimationFrame(() => {
-      const { h, m } = splitTotalMinutes(value);
-      scrollToIdx(hourWheelRef.current, h, "auto");
-      scrollToIdx(minWheelRef.current, m, "auto");
+  const setByStep = (delta) => {
+    const next = clamp(Number(value) + delta, MIN_TOTAL, MAX_TOTAL);
+    onChange(next);
+  };
 
-      updateHighlight(
-        hourWheelRef.current,
-        hoursOptions.length,
-        setHourHighlightTop
-      );
-      updateHighlight(
-        minWheelRef.current,
-        minutesOptions.length,
-        setMinHighlightTop
-      );
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, open]);
+  const onInputChange = (raw) => {
+    const digits = raw.replace(/\D/g, "");
+    setInputMinutes(digits);
+    if (!digits) return;
+    const next = clamp(Number(digits), MIN_TOTAL, MAX_TOTAL);
+    onChange(next);
+  };
 
-  // scroll -> live select (hours)
-  useEffect(() => {
-    if (!open) return;
-    const wheel = hourWheelRef.current;
-    if (!wheel) return;
+  const commitInput = () => {
+    const next = clamp(Number(inputMinutes) || MIN_TOTAL, MIN_TOTAL, MAX_TOTAL);
+    setInputMinutes(String(next));
+    onChange(next);
+  };
 
-    const onScroll = () => {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        updateHighlight(wheel, hoursOptions.length, setHourHighlightTop);
-        if (programmaticRef.current) return;
+  const progress = useMemo(() => {
+    const v = clamp(Number(value), MIN_TOTAL, MAX_TOTAL);
+    return (v - MIN_TOTAL) / (MAX_TOTAL - MIN_TOTAL);
+  }, [value]);
 
-        const hIdx = idxFromScrollTop(hoursOptions.length, wheel.scrollTop);
-        const h = hoursOptions[hIdx];
+  const R = 56;
+  const C = 2 * Math.PI * R;
+  const dash = C * progress;
+  const angle = progress * 360;
 
-        const { m } = splitTotalMinutes(value);
-        setByHM(h, m, "auto");
-      });
+  const toValueFromPoint = (clientX, clientY) => {
+    const el = dialRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+
+    const dx = clientX - cx;
+    const dy = clientY - cy;
+    let deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+    deg = (deg + 450) % 360;
+
+    const p = clamp(deg / 360, 0, 1);
+    const next = Math.round(MIN_TOTAL + p * (MAX_TOTAL - MIN_TOTAL));
+    onChange(clamp(next, MIN_TOTAL, MAX_TOTAL));
+  };
+
+  const handleDialPointerDown = (e) => {
+    draggingRef.current = true;
+    toValueFromPoint(e.clientX, e.clientY);
+
+    const onMove = (ev) => {
+      if (!draggingRef.current) return;
+      toValueFromPoint(ev.clientX, ev.clientY);
     };
 
-    wheel.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-      wheel.removeEventListener("scroll", onScroll);
-    };
-  }, [open, hoursOptions, value]);
-
-  // scroll -> live select (minutes)
-  useEffect(() => {
-    if (!open) return;
-    const wheel = minWheelRef.current;
-    if (!wheel) return;
-
-    const onScroll = () => {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        updateHighlight(wheel, minutesOptions.length, setMinHighlightTop);
-        if (programmaticRef.current) return;
-
-        const mIdx = idxFromScrollTop(minutesOptions.length, wheel.scrollTop);
-        const m = minutesOptions[mIdx];
-
-        const { h } = splitTotalMinutes(value);
-        setByHM(h, m, "auto");
-      });
+    const onUp = () => {
+      draggingRef.current = false;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
     };
 
-    wheel.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-      wheel.removeEventListener("scroll", onScroll);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, minutesOptions, value]);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
 
-  // Only for: closed state -> Enter/Space opens (optional)
   const handleClosedKeyDown = (e) => {
     if (disabled) return;
     if (open) return;
@@ -387,14 +235,28 @@ export default function MinuteSelect({
     <div
       id="minute-popover"
       className="minute-pop"
-      style={{
-        position: "fixed",
-        top: pos.top,
-        left: pos.left,
-        width: pos.width,
-      }}
+      style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width }}
     >
-      <div className="minute-pop-header">Minutes</div>
+      <div className="minute-pop-headrow">
+        <div className="minute-pop-header">Minutes</div>
+        <label className="minute-direct-input">
+          <input
+            type="text"
+            inputMode="numeric"
+            value={inputMinutes}
+            onChange={(e) => onInputChange(e.target.value)}
+            onBlur={commitInput}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              e.stopPropagation();
+              commitInput();
+            }}
+            aria-label="Minutes input"
+          />
+          <span>m</span>
+        </label>
+      </div>
 
       <div className="minute-quick-row">
         {QUICK_PRESETS.map((m) => (
@@ -402,19 +264,36 @@ export default function MinuteSelect({
             key={m}
             type="button"
             className={`minute-quick ${Number(value) === m ? "active" : ""}`}
-            onClick={() => {
-              onChange(m);
-              const { h, m: mm } = splitTotalMinutes(m);
-              scrollToIdx(hourWheelRef.current, h, "smooth");
-              scrollToIdx(minWheelRef.current, mm, "smooth");
-            }}
+            onClick={() => onChange(m)}
           >
             {m}m
           </button>
         ))}
       </div>
 
-      <div className="minute-divider" />
+      <div className="minute-dial-wrap">
+        <div
+          ref={dialRef}
+          className="minute-dial"
+          onPointerDown={handleDialPointerDown}
+        >
+          <svg className="minute-dial-svg" viewBox="0 0 140 140" aria-hidden="true">
+            <circle cx="70" cy="70" r={R} className="dial-track" />
+            <circle
+              cx="70"
+              cy="70"
+              r={R}
+              className="dial-progress"
+              strokeDasharray={`${dash} ${C}`}
+            />
+            <g transform={`rotate(${angle} 70 70)`}>
+              <circle cx="70" cy="14" r="6" className="dial-knob" />
+            </g>
+          </svg>
+
+          <div className="minute-dial-center">{formatBtnLabel(value)}</div>
+        </div>
+      </div>
 
       <div className="minute-slider-row">
         <input
@@ -422,89 +301,25 @@ export default function MinuteSelect({
           type="range"
           min={MIN_TOTAL}
           max={MAX_TOTAL}
+          step={1}
           value={Number(value)}
-          onChange={(e) => {
-            const v = Number(e.target.value);
-            onChange(v);
-
-            const { h, m } = splitTotalMinutes(v);
-            scrollToIdx(hourWheelRef.current, h, "auto");
-            scrollToIdx(minWheelRef.current, m, "auto");
-          }}
+          onChange={(e) => onChange(Number(e.target.value))}
         />
-        <div className="minute-slider-value">{formatBtnLabel(value)}</div>
       </div>
 
-      <div style={{ display: "flex", gap: 8 }}>
-        {/* Hours wheel */}
-        <div
-          className="minute-wheel"
-          ref={hourWheelRef}
-          aria-label="Hour picker"
-          style={{
-            width: "50%",
-            paddingTop: WHEEL_PAD,
-            paddingBottom: WHEEL_PAD,
-          }}
-        >
-          {hoursOptions.map((h) => {
-            const activeH = splitTotalMinutes(value).h;
-            return (
-              <button
-                key={h}
-                type="button"
-                className={`minute-wheel-item ${activeH === h ? "active" : ""}`}
-                onClick={() => {
-                  const { m } = splitTotalMinutes(value);
-                  setByHM(h, m, "smooth");
-                }}
-              >
-                {h}h
-              </button>
-            );
-          })}
-
-          <div
-            className="minute-wheel-highlight"
-            style={{ top: `${hourHighlightTop}px` }}
-            aria-hidden="true"
-          />
-        </div>
-
-        {/* Minutes wheel */}
-        <div
-          className="minute-wheel"
-          ref={minWheelRef}
-          aria-label="Minute picker"
-          style={{
-            width: "50%",
-            paddingTop: WHEEL_PAD,
-            paddingBottom: WHEEL_PAD,
-          }}
-        >
-          {minutesOptions.map((m) => {
-            const activeM = splitTotalMinutes(value).m;
-            return (
-              <button
-                key={m}
-                type="button"
-                className={`minute-wheel-item ${activeM === m ? "active" : ""}`}
-                onClick={() => {
-                  const { h } = splitTotalMinutes(value);
-                  setByHM(h, m, "smooth");
-                }}
-              >
-                {m}m
-              </button>
-            );
-          })}
-
-          <div
-            className="minute-wheel-highlight"
-            style={{ top: `${minHighlightTop}px` }}
-            aria-hidden="true"
-          />
-        </div>
+      <div className="minute-stepper-row">
+        <button type="button" className="minute-step" onClick={() => setByStep(-10)}>
+          -10m
+        </button>
+        <button type="button" className="minute-step" onClick={() => setByStep(-5)}>
+          -5m
+        </button>
+        <button type="button" className="minute-step" onClick={() => setByStep(5)}>
+          +5m
+        </button>
+        <button type="button" className="minute-step" onClick={() => setByStep(10)}>
+          +10m
+        </button>
       </div>
     </div>
   );
@@ -523,7 +338,7 @@ export default function MinuteSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         disabled={disabled}
-        onClick={() => setOpenSafe(!open)} // ✅ IMPORTANT
+        onClick={() => setOpenSafe(!open)}
       >
         <span>{formatBtnLabel(value)}</span>
         <span className="chev">▾</span>

@@ -138,3 +138,10 @@
   width: 64px;
   height: 28px;
 }
+
+/* Light mode: make input block stand out from page background */
+:root[data-theme="light"] .create-form {
+  background: color-mix(in srgb, var(--surface-2) 72%, white 28%);
+  border-color: color-mix(in srgb, var(--form-border) 86%, transparent);
+  box-shadow: none;
+}
