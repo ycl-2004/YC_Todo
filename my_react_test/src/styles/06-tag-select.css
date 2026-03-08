@@ -4,6 +4,7 @@
 .tag-dd {
   position: relative;
   flex: 0 0 auto;
+  z-index: 100001;
 }
 
 /* button */
@@ -61,8 +62,8 @@
 /* dropdown panel */
 .tag-dd-pop {
   position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
+  left: 0;
+  top: calc(100% + 6px);
 
   width: 96px; /* ✅ dropdown 變窄 */
   padding: 4px; /* ✅ 外框 padding 小 */
@@ -75,7 +76,7 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 
-  z-index: 9999;
+  z-index: 100002;
 }
 
 /* items */

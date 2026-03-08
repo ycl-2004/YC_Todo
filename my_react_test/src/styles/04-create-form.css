@@ -2,6 +2,8 @@
    5) Create Form
    ============================================================ */
 .create-form {
+  position: relative;
+  z-index: 200;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -14,7 +16,7 @@
   border: 1px solid color-mix(in srgb, var(--form-border) 75%, transparent);
   background: var(--surface-2);
   box-shadow: none;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .create-form:focus-within {

@@ -39,7 +39,7 @@ function Todo({
   const tagPickerRef = useRef(null);
 
   const [openUp, setOpenUp] = useState(false);
-  const [pickerPos, setPickerPos] = useState({ top: 0, left: 0, width: 20 });
+  const [pickerPos, setPickerPos] = useState({ top: 0, left: 0, width: 88 });
 
   const tagOptions = useMemo(() => {
     const base = Array.isArray(tags) ? tags : [];
@@ -82,9 +82,9 @@ function Todo({
       const vh = window.innerHeight;
 
       const gap = 6;
-      const popW = 10;
-      const itemH = 22;
-      const popH = Math.min(8 + tagOptions.length * itemH, 96);
+      const popW = 88;
+      const itemH = 24;
+      const popH = Math.min(6 + tagOptions.length * itemH, 126);
 
       const boundBottom = listRect ? listRect.bottom : vh;
       const boundTop = listRect ? listRect.top : 8;
@@ -94,7 +94,8 @@ function Todo({
       const shouldOpenUp = spaceBelow < popH && spaceAbove > spaceBelow;
 
       let top = shouldOpenUp ? r.top - gap - popH : r.bottom + gap;
-      let left = r.left + r.width / 2 - popW / 2;
+      // Anchor to button's left edge so popover appears directly above/below tag chip.
+      let left = r.left;
 
       top = Math.max(8, Math.min(top, vh - popH - 8));
       left = Math.max(8, Math.min(left, vw - popW - 8));
