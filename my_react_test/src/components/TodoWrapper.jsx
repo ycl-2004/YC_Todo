@@ -1894,7 +1894,7 @@ function TodoWrapper() {
 
               <div
                 className="header-badges"
-                style={{ position: "relative", zIndex: 10 }}
+                style={{ position: "relative", zIndex: 2147483400 }}
               >
                 <button type="button" className="badge badge-timer">
                   {headerRight}
