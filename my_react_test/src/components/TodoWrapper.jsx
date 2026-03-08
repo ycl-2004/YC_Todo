@@ -175,6 +175,7 @@ function TodoWrapper() {
     const data = raw ? safeParse(raw, null) : null;
     return data?.ui?.showCompleted ?? false;
   });
+  const [openTagPickerId, setOpenTagPickerId] = useState(null);
 
   const isLocked = status === "running" || status === "paused";
   const [openTagPickerId, setOpenTagPickerId] = useState(null);
@@ -1360,6 +1361,7 @@ function TodoWrapper() {
 
   useEffect(() => {
     setShowCompleted(false);
+    setOpenTagPickerId(null);
   }, [activeTag]);
 
   useEffect(() => {
@@ -1426,7 +1428,10 @@ function TodoWrapper() {
   const changeTodoTag = (id, nextTag) => {
     if (isLocked) return;
     if (!nextTag) return;
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
     setTodos((prev) =>
       prev.map((t) => (t.id === id ? { ...t, tag: nextTag } : t)),
     );

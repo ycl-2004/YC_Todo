@@ -15,7 +15,7 @@
     linear-gradient(180deg, var(--bg1), var(--bg2));
 
   border-radius: var(--radius-lg);
-  padding: 10px 24px 18px;
+  padding: 22px 30px 22px;
 
   border: 1px solid var(--card-border);
   box-shadow: var(--shadow-lg);
