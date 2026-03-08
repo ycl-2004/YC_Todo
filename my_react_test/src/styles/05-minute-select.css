@@ -1,44 +1,51 @@
-/* ============================================================ 6) MinuteSelect Popover + Wheel Picker + Native select styling ============================================================ */
+/* ============================================================
+   6) Minute Select
+   Clean popover style + top layer safety
+   ============================================================ */
+
 .minute-pop {
-  padding: 8px;
-  border-radius: 20px;
-  background: var(--layer-bg);
-  border: 1px solid var(--layer-border);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  z-index: 9999;
+  padding: 10px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--layer-bg) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--layer-border) 75%, transparent);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 2147483600;
 }
+
 .minute-pop-header {
-  padding: 6px 8px 10px;
+  padding: 4px 6px 8px;
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.2px;
   color: var(--ink);
-  opacity: 0.9;
+  opacity: 0.92;
 }
+
 .minute-divider {
   width: 100%;
   height: 1px;
   margin: 8px 0;
   background: color-mix(in srgb, var(--ink) 14%, transparent);
-} /* ------------------------------ Quick presets row ------------------------------ */
+}
+
+/* ------------------------------
+   Quick presets
+------------------------------ */
 .minute-quick-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
   padding: 4px;
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--surface-2);
   border: 1px solid color-mix(in srgb, var(--card-border) 55%, transparent);
-  scrollbar-width: none;
 }
-.minute-quick-row::-webkit-scrollbar {
-  display: none;
-}
+
 .minute-quick {
-  height: 24px;
-  border-radius: 12px;
+  height: 30px;
+  border-radius: 10px;
   border: 1px solid var(--chip-border);
   background: var(--chip-bg);
   color: var(--ink);
@@ -49,83 +56,109 @@
   justify-content: center;
   cursor: pointer;
   user-select: none;
-  transition: transform 120ms var(--ease), filter 120ms var(--ease);
+  transition:
+    transform 120ms var(--ease),
+    filter 120ms var(--ease),
+    background 120ms var(--ease);
 }
+
 .minute-quick:hover {
   filter: brightness(1.03);
-  transform: translateY(-1px);
 }
+
 .minute-quick:active {
-  transform: translateY(0);
+  transform: translateY(1px);
 }
+
 .minute-quick.active {
-  background: color-mix(in srgb, var(--accent) 75%, transparent);
+  background: color-mix(in srgb, var(--accent) 62%, var(--surface-1));
+  border-color: color-mix(in srgb, var(--accent) 48%, transparent);
   color: #fff;
-  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
-} /* ------------------------------ Slider row ------------------------------ */
+}
+
+/* ------------------------------
+   Slider
+------------------------------ */
 .minute-slider-row {
   width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 6px 2px;
+  padding: 6px 4px 2px;
 }
+
 .minute-slider {
   flex: 1 1 auto;
   min-width: 0;
-  max-width: 100%;
   height: 6px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 18%, transparent);
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
 }
+
 .minute-slider::-webkit-slider-runnable-track {
   height: 6px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 18%, transparent);
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
 }
+
+.minute-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
+}
+
 .minute-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 16px;
   height: 16px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 85%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
+  background: color-mix(in srgb, var(--accent) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 54%, transparent);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
   margin-top: -5px;
+  cursor: pointer;
 }
+
+.minute-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 54%, transparent);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.16);
+  cursor: pointer;
+}
+
 .minute-slider-value {
-  width: 45px;
+  width: 50px;
   text-align: right;
   font-size: 11px;
   font-weight: 900;
   color: var(--ink);
-  opacity: 0.85;
+  opacity: 0.9;
   flex: 0 0 auto;
-  display: inline-flex;
-} /* ------------------------------ Wheel picker ------------------------------ */
-.minute-wheel-pad {
-  height: 36px; /* ITEM_H */
 }
 
+/* ------------------------------
+   Wheel
+------------------------------ */
 .minute-wheel {
   position: relative;
-  height: 180px; /* ✅ 这组必须保留，才能“中间选中” */
-
+  height: 180px;
   overflow-y: auto;
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--surface-2);
   border: 1px solid color-mix(in srgb, var(--card-border) 55%, transparent);
   scroll-snap-type: y mandatory;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
+
 .minute-wheel::-webkit-scrollbar {
   display: none;
 }
+
 .minute-wheel-item {
   height: 36px;
   width: 100%;
@@ -140,55 +173,47 @@
   cursor: pointer;
   user-select: none;
   scroll-snap-align: center;
+  opacity: 0.58;
+  transition:
+    filter 120ms var(--ease),
+    transform 120ms var(--ease),
+    opacity 120ms var(--ease);
   position: relative;
   z-index: 2;
-  transition: filter 120ms var(--ease), transform 120ms var(--ease),
-    opacity 120ms var(--ease);
 }
+
 .minute-wheel-item:hover {
   filter: brightness(1.03);
 }
+
 .minute-wheel-item:active {
   transform: scale(0.99);
-} /* ✅ 重点：active 不做背景，只做字更亮、其他字更淡（更像 iOS picker） */
-.minute-wheel-item {
-  opacity: 0.6;
 }
+
 .minute-wheel-item.active {
   opacity: 1;
   color: #fff;
-} /* ✅ A：固定中间高亮（背景永远在中心） */
+  background: color-mix(in srgb, var(--accent) 66%, transparent);
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 52%, transparent);
+}
+
 .minute-wheel-highlight {
+  display: none;
   pointer-events: none;
   position: absolute;
   left: 10px;
   right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
   height: 36px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--accent) 72%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
   z-index: 1;
-} /* ✅ 选中浮层：更 standout（永远在中间） */
-.minute-wheel-float {
-  pointer-events: none;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  height: 36px;
-  line-height: 36px;
-  padding: 0 12px;
-  border-radius: 999px;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 1000;
-  letter-spacing: 0.2px;
-  background: color-mix(in srgb, var(--accent) 86%, transparent);
-  box-shadow: var(--shadow-sm);
-  z-index: 3;
-} /* ------------------------------ Native select styling ------------------------------ */
+}
+
+/* ------------------------------
+   Minute button
+------------------------------ */
 .minute-btn,
 .minute-select select,
 .edit-form.edit-inline select {
@@ -201,29 +226,19 @@
   border-radius: 999px;
   height: 26px;
   min-width: 56px;
-  padding: 0 26px 0 10px;
+  padding: 0 10px;
   font-size: 11px;
   font-weight: 900;
   line-height: 26px;
   cursor: pointer;
-  background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%),
-    linear-gradient(135deg, var(--ink) 50%, transparent 50%);
-  background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
 }
+
 .minute-btn:focus,
 .minute-select select:focus,
 .edit-form.edit-inline select:focus {
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
-.edit-form.edit-inline select.minute-btn,
-.edit-form.edit-inline .minute-btn {
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: none !important;
-  padding-right: 12px;
-}
+
 .create-form .minute-btn {
   height: 26px;
   min-width: 56px;
@@ -240,122 +255,10 @@
   line-height: 1;
   color: var(--ink);
 }
+
 .minute-btn > span {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   line-height: 1;
-} /* 强制中间高亮一定显示 */
-.minute-wheel-highlight {
-  display: none !important;
-  pointer-events: none;
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 36px;
-  border-radius: 12px; /* 先用更明显的颜色，确保你看得到 */
-  background: color-mix(in srgb, var(--accent) 55%, transparent) !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent) !important;
-  z-index: 1;
-} /* item 在上面 */
-.minute-wheel-item {
-  position: relative;
-  z-index: 2;
-  background: transparent;
-} /* ✅ 选中 item 自己带背景（跟着选中的时间跑） */
-.minute-wheel-item.active {
-  opacity: 1;
-  color: #fff; /* 选中背景 */
-  background: color-mix(in srgb, var(--accent) 78%, transparent);
-  border-radius: 12px; /* 让它更浮出来一点 */
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12),
-    inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
-}
-.minute-wheel-highlight {
-  background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent) !important;
-}
-
-/* ------------------------------
-   Wheel picker (NO pads)
------------------------------- */
-.minute-wheel {
-  position: relative;
-  height: 180px; /* 36 * 5 */
-  overflow-y: auto;
-
-  border-radius: 14px;
-  background: var(--surface-2);
-  border: 1px solid color-mix(in srgb, var(--card-border) 55%, transparent);
-
-  /* snap 每格 */
-  scroll-snap-type: y mandatory;
-  -webkit-overflow-scrolling: touch;
-
-  scrollbar-width: none;
-}
-.minute-wheel::-webkit-scrollbar {
-  display: none;
-}
-
-.minute-wheel-item {
-  height: 36px;
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-
-  font-size: 12px;
-  font-weight: 900;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  cursor: pointer;
-  user-select: none;
-
-  scroll-snap-align: center;
-
-  opacity: 0.6;
-  transition: filter 120ms var(--ease), transform 120ms var(--ease),
-    opacity 120ms var(--ease);
-}
-
-.minute-wheel-item:hover {
-  filter: brightness(1.03);
-}
-.minute-wheel-item:active {
-  transform: scale(0.99);
-}
-
-/* ✅ 你要的「选中粉色条」效果 */
-.minute-wheel-item.active {
-  opacity: 1;
-  color: #fff;
-
-  background: color-mix(in srgb, var(--accent) 78%, transparent);
-  border-radius: 12px;
-
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12),
-    inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
-}
-
-/* ✅ highlight 现在会被 JS 控制 top，所以这里只定义样式 */
-.minute-wheel-highlight {
-  pointer-events: none;
-  position: absolute;
-  left: 10px;
-  right: 10px;
-
-  height: 36px;
-  border-radius: 12px;
-
-  /* 淡淡的参考框（不会抢 active 背景） */
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
-
-  z-index: 1;
 }

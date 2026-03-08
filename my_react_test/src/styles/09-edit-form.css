@@ -31,8 +31,8 @@
 
 .edit-form.edit-inline .minute-btn {
   height: 30px;
-  min-width: 54px;
-  padding: 0 8px;
+  min-width: 62px;
+  padding: 0 24px 0 8px;
   font-size: 11px;
   border-radius: 12px;
   position: relative;
@@ -51,12 +51,17 @@
   flex: 1 1 auto;
   text-align: center;
   display: block;
+  padding-right: 8px;
 }
 
 /* ▾ 固定在右边，不再挤歪文字 */
 .edit-form.edit-inline .minute-btn .chev {
   position: absolute;
-  right: 10px; /* 想更靠右：12/14 */
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 900;
+  color: color-mix(in srgb, var(--ink) 88%, transparent);
+  pointer-events: none;
 }

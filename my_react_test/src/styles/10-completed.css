@@ -55,3 +55,8 @@
 .completed-list::-webkit-scrollbar {
   display: none;
 }
+
+:root[data-theme="dark"] .collapse-btn {
+  box-shadow: none;
+  border-color: color-mix(in srgb, var(--card-border) 72%, transparent);
+}

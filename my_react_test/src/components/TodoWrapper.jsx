@@ -122,6 +122,7 @@ function TodoWrapper() {
   const [entryFilter, setEntryFilter] = useState(() => {
     return localStorage.getItem(ENTRY_FILTER_KEY) || "all";
   });
+  const [dayTick, setDayTick] = useState(() => Date.now());
 
   const [accent, setAccent] = useState(() => {
     const raw = localStorage.getItem(SETTINGS_KEY);
@@ -463,7 +464,7 @@ function TodoWrapper() {
       focusMinutes,
       tagRows,
     };
-  }, [normalizedTodos]);
+  }, [normalizedTodos, dayTick]);
 
   const topTagSummary = useMemo(() => {
     if (todayStats.tagRows.length === 0) return "No focus yet";
@@ -510,6 +511,7 @@ function TodoWrapper() {
   });
 
   const [showNotifyPanel, setShowNotifyPanel] = useState(false);
+  const [showTodaySummary, setShowTodaySummary] = useState(false);
 
   // Quiet overlay (NEW)
   const [quietOverlayOpen, setQuietOverlayOpen] = useState(false);
@@ -520,6 +522,13 @@ function TodoWrapper() {
       console.error,
     );
   }, [quietOverlayOpen]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setDayTick(Date.now());
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const showAppAndFocusBestEffort = async () => {
     try {
@@ -2101,10 +2110,21 @@ function TodoWrapper() {
           <div className="now-bar">
             <div className="now-bar-top">
               <span className="now-title">Now</span>
+              <div className="now-top-right">
+                <button
+                  type="button"
+                  className={`stats-toggle ${showTodaySummary ? "active" : ""}`}
+                  onClick={() => setShowTodaySummary((v) => !v)}
+                  title="Show today summary"
+                  aria-label="Show today summary"
+                >
+                  ✓
+                </button>
 
-              <span className="remaining-chip">
-                <b>{remainingCount}</b> <span>{remainingLabel}</span>
-              </span>
+                <span className="remaining-chip">
+                  <b>{remainingCount}</b> <span>{remainingLabel}</span>
+                </span>
+              </div>
             </div>
 
             <div className="now-bar-bottom">
@@ -2151,18 +2171,14 @@ function TodoWrapper() {
                 <span className="running-chip">{runningLabel}</span>
               )}
             </div>
-          </div>
-
-          <div className="today-stats-inline">
-            <span className="stat-pill done">
-              <span className="k">Done</span> {todayStats.completedCount}
-            </span>
-            <span className="stat-pill focus">
-              <span className="k">Focus</span> {todayStats.focusMinutes}m
-            </span>
-            <span className="stat-pill tag">
-              <span className="k">Tag</span> {topTagSummary}
-            </span>
+            {showTodaySummary && (
+              <div className="today-stats-inline">
+                <span className="today-stats-text">
+                  Today: Done {todayStats.completedCount} · Focus{" "}
+                  {todayStats.focusMinutes}m · Tag {topTagSummary}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="now-section">

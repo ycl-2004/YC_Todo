@@ -11,17 +11,15 @@
   padding: 6px 8px;
 
   border-radius: 30px;
-  border: 2px solid var(--form-border);
+  border: 1px solid color-mix(in srgb, var(--form-border) 75%, transparent);
   background: var(--surface-2);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   overflow: hidden;
 }
 
 .create-form:focus-within {
   border-color: var(--form-border-focus);
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent),
-    var(--shadow-sm);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 .create-form > input {

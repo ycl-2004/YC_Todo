@@ -32,10 +32,34 @@ function TagManager({
   const [editing, setEditing] = useState(null); // tag string
   const [draft, setDraft] = useState("");
   const [paletteOpenTag, setPaletteOpenTag] = useState(null);
+  const [popPos, setPopPos] = useState({ top: 0, left: 0, width: 214 });
   const [palettePos, setPalettePos] = useState({ top: 0, left: 0 });
 
   const wrapRef = useRef(null);
+  const popRef = useRef(null);
   const paletteRef = useRef(null);
+
+  const computeManagerPos = () => {
+    const btn = wrapRef.current?.querySelector(".tag-mgr-btn");
+    if (!btn) return;
+
+    const r = btn.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const gap = 8;
+
+    const popW = Math.min(214, vw - 24);
+    const popH = Math.min(240, Math.max(140, vh - 230));
+    const openUp = vh - r.bottom < popH + gap;
+
+    let top = openUp ? r.top - popH - gap : r.bottom + gap;
+    let left = r.right - popW;
+
+    top = Math.max(8, Math.min(top, vh - popH - 8));
+    left = Math.max(8, Math.min(left, vw - popW - 8));
+
+    setPopPos({ top, left, width: popW });
+  };
 
   const computePalettePos = (dotEl) => {
     if (!dotEl) return;
@@ -62,6 +86,7 @@ function TagManager({
       if (!open) return;
       if (!wrapRef.current) return;
       if (wrapRef.current.contains(e.target)) return;
+      if (popRef.current?.contains(e.target)) return;
       if (paletteRef.current?.contains(e.target)) return;
       setOpen(false);
       setEditing(null);
@@ -138,9 +163,21 @@ function TagManager({
   };
 
   useEffect(() => {
+    if (!open) return;
+    const onRecalc = () => computeManagerPos();
+    window.addEventListener("resize", onRecalc);
+    document.addEventListener("scroll", onRecalc, true);
+    onRecalc();
+    return () => {
+      window.removeEventListener("resize", onRecalc);
+      document.removeEventListener("scroll", onRecalc, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
     if (!paletteOpenTag) return;
     const onRecalc = () => {
-      const dot = wrapRef.current?.querySelector(
+      const dot = popRef.current?.querySelector(
         `[data-tag-dot="${CSS.escape(paletteOpenTag)}"]`,
       );
       computePalettePos(dot);
@@ -159,7 +196,14 @@ function TagManager({
       <button
         type="button"
         className="tag-mgr-btn"
-        onClick={() => !disabled && setOpen((v) => !v)}
+        onClick={() => {
+          if (disabled) return;
+          setOpen((v) => {
+            const next = !v;
+            if (next) setTimeout(() => computeManagerPos(), 0);
+            return next;
+          });
+        }}
         disabled={disabled}
         aria-label="Manage tags"
         title="Manage tags"
@@ -167,8 +211,18 @@ function TagManager({
         ⚙︎
       </button>
 
-      {open && !disabled && (
-        <div className="tag-mgr-pop">
+      {open && !disabled
+        ? createPortal(
+            <div
+              ref={popRef}
+              className="tag-mgr-pop"
+              style={{
+                position: "fixed",
+                top: `${popPos.top}px`,
+                left: `${popPos.left}px`,
+                width: `${popPos.width}px`,
+              }}
+            >
           <div className="tag-mgr-head">
             <div className="tag-mgr-title">Customize Tag</div>
             <button
@@ -285,8 +339,10 @@ function TagManager({
           </div>
 
           <div className="tag-mgr-hint">Tip: tags are case-insensitive.</div>
-        </div>
-      )}
+        </div>,
+            document.body,
+          )
+        : null}
 
       {open && paletteOpenTag
         ? createPortal(

@@ -382,3 +382,20 @@
   opacity: 0.35;
   pointer-events: none;
 }
+
+:root[data-theme="dark"] .todo {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--todo-grad-1) 76%, transparent),
+    color-mix(in srgb, var(--todo-grad-2) 76%, transparent)
+  );
+}
+
+:root[data-theme="dark"] .todo.editing {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+}
+
+:root[data-theme="dark"] .todo:hover {
+  filter: brightness(1.01);
+}
