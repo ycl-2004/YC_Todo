@@ -247,20 +247,22 @@
   right: 0;
   top: calc(100% + 8px);
 
-  width: min(230px, calc(100vw - 24px)); /* ✅ 小視窗不爆 */
-  padding: 10px;
-  border-radius: 16px;
+  width: min(214px, calc(100vw - 24px));
+  padding: 8px 8px 6px;
+  border-radius: 14px;
 
-  background: var(--layer-bg);
-  border: 1px solid var(--layer-border);
-  box-shadow: var(--shadow-lg);
+  background: color-mix(in srgb, var(--layer-bg) 92%, white 8%);
+  border: 1px solid color-mix(in srgb, var(--layer-border) 80%, white 20%);
+  box-shadow:
+    0 18px 38px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
 
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 
   z-index: 99999;
 
-  max-height: min(270px, calc(100vh - 230px));
+  max-height: min(240px, calc(100vh - 230px));
 
   overflow: hidden; /* ✅ 改回不讓 pop 自己滾 */
   display: flex;
@@ -272,21 +274,23 @@
   display: flex;
   align-items: center;
   justify-content: flex-end; /* ✅ 讓 X 留在右邊 */
-  margin-bottom: 10px;
+  margin-bottom: 7px;
+  min-height: 24px;
 }
 
 .tag-mgr-title {
   position: absolute; /* ✅ 新增 */
   left: 50%;
   transform: translateX(-50%);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 900;
+  letter-spacing: 0.2px;
 }
 
 .tag-mgr-x {
-  width: 26px;
-  height: 26px;
-  border-radius: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
 
   border: 1px solid var(--chip-border);
   background: var(--surface-2);
@@ -301,23 +305,23 @@
 
 .tag-mgr-add {
   display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 7px;
+  margin-bottom: 7px;
   align-items: center; /* ✅ */
 }
 
 .tag-mgr-input {
   flex: 1 1 0; /* ✅ 改這行（更容易 shrink） */
   min-width: 0; /* ✅ 加這行（最關鍵，沒它會爆） */
-  height: 30px;
-  border-radius: 12px;
+  height: 26px;
+  border-radius: 9px;
 
   border: 1px solid color-mix(in srgb, var(--card-border) 60%, transparent);
   background: var(--surface-2);
   color: var(--ink);
 
-  padding: 0 10px;
-  font-size: 12px;
+  padding: 0 8px;
+  font-size: 10px;
   font-weight: 800;
   outline: none;
 }
@@ -329,9 +333,10 @@
 .tag-mgr-add-btn {
   flex: 0 0 auto; /* ✅ */
   white-space: nowrap; /* ✅ */
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 12px;
+  height: 26px;
+  min-width: 50px;
+  padding: 0 8px;
+  border-radius: 9px;
 
   border: 1px solid var(--card-border);
   background: linear-gradient(
@@ -341,7 +346,7 @@
   );
   color: var(--btn-primary-text);
 
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 900;
   cursor: pointer;
 }
@@ -355,14 +360,14 @@
 .tag-mgr-list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 5px;
 
   flex: 1 1 auto; /* ✅ 用剩下高度 */
   min-height: 0; /* ✅ 關鍵：不然 overflow 不會生效 */
   overflow-y: auto;
 
-  padding-right: 2px;
-  padding-bottom: 1px; /* ✅ 新增：確保最後一列露出 */
+  padding-right: 1px;
+  padding-bottom: 2px;
   scrollbar-width: none;
 }
 
@@ -376,11 +381,21 @@
   align-items: center;
   gap: 8px;
 
-  padding: 4px 6px; /* ✅ row 更薄 */
+  padding: 6px 7px;
   border-radius: 10px;
 
-  background: var(--surface-2);
-  border: 1px solid color-mix(in srgb, var(--card-border) 55%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--card-border) 58%, transparent);
+  transition:
+    background 120ms var(--ease),
+    border-color 120ms var(--ease),
+    transform 120ms var(--ease);
+}
+
+.tag-mgr-row:hover {
+  background: color-mix(in srgb, var(--surface-2) 88%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--card-border));
+  transform: translateY(-1px);
 }
 
 .tag-mgr-name-row {
@@ -392,8 +407,8 @@
 }
 
 .tag-mgr-color-dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 999px;
   flex: 0 0 auto;
   background: var(--tag-color, #b9c36b);
@@ -407,7 +422,7 @@
   flex: 1 1 auto;
   min-width: 0;
 
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 900;
   white-space: nowrap;
   overflow: hidden;
@@ -415,25 +430,24 @@
 }
 
 .tag-mgr-palette {
-  position: absolute;
-  left: 8px;
-  top: calc(100% + 6px);
-  z-index: 4;
+  position: fixed;
+  z-index: 100000;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-radius: 12px;
-  background: var(--layer-bg);
-  border: 1px solid var(--layer-border);
-  box-shadow: var(--shadow-md);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  gap: 5px;
+  padding: 5px 7px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg1) 96%, white 4%);
+  border: 1px solid color-mix(in srgb, var(--layer-border) 84%, white 16%);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  isolation: isolate;
 }
 
 .tag-mgr-swatch {
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--swatch-color, #b9c36b) 68%, #fff 32%);
   background: var(--swatch-color, #b9c36b);
@@ -450,20 +464,20 @@
 
 .tag-mgr-actions {
   display: inline-flex;
-  gap: 6px;
+  gap: 4px;
 }
 
 /* mini buttons */
 .tag-mgr-mini {
-  height: 26px;
+  height: 22px;
   padding: 0 8px;
-  border-radius: 10px;
+  border-radius: 8px;
 
   border: 1px solid var(--chip-border);
   background: var(--chip-bg);
   color: var(--ink);
 
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 900;
   cursor: pointer;
 }
@@ -501,12 +515,13 @@
 }
 
 .tag-mgr-hint {
-  margin-top: 8px;
+  margin-top: 6px;
   margin-bottom: 0; /* ✅ 改掉 */
-  padding-bottom: 6px; /* ✅ 用 padding 代替 margin，避免被裁 */
-  font-size: 11px;
+  padding-bottom: 4px;
+  font-size: 9px;
   color: var(--muted);
   text-align: center;
+  letter-spacing: 0.15px;
 }
 
 /* ✅ keep each todo row height consistent (even when only 1–2 items) */

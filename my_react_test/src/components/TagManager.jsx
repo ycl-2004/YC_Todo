@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 function normalizeTag(s) {
   return String(s ?? "").trim();
@@ -29,8 +30,29 @@ function TagManager({
   const [editing, setEditing] = useState(null); // tag string
   const [draft, setDraft] = useState("");
   const [paletteOpenTag, setPaletteOpenTag] = useState(null);
+  const [palettePos, setPalettePos] = useState({ top: 0, left: 0 });
 
   const wrapRef = useRef(null);
+  const paletteRef = useRef(null);
+
+  const computePalettePos = (dotEl) => {
+    if (!dotEl) return;
+    const r = dotEl.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const gap = 8;
+
+    const popW = 188;
+    const popH = 36;
+    const openUp = vh - r.bottom < popH + gap;
+
+    let top = openUp ? r.top - popH - gap : r.bottom + gap;
+    let left = r.left + r.width / 2 - popW / 2;
+
+    top = Math.max(8, Math.min(top, vh - popH - 8));
+    left = Math.max(8, Math.min(left, vw - popW - 8));
+    setPalettePos({ top, left });
+  };
 
   // click outside close
   useEffect(() => {
@@ -38,6 +60,7 @@ function TagManager({
       if (!open) return;
       if (!wrapRef.current) return;
       if (wrapRef.current.contains(e.target)) return;
+      if (paletteRef.current?.contains(e.target)) return;
       setOpen(false);
       setEditing(null);
       setPaletteOpenTag(null);
@@ -97,6 +120,34 @@ function TagManager({
     if (activeTag === t) setActiveTag("All");
     if (paletteOpenTag === t) setPaletteOpenTag(null);
   };
+
+  const togglePalette = (tag, evt) => {
+    if (paletteOpenTag === tag) {
+      setPaletteOpenTag(null);
+      return;
+    }
+
+    const dot = evt.currentTarget;
+    computePalettePos(dot);
+    setPaletteOpenTag(tag);
+  };
+
+  useEffect(() => {
+    if (!paletteOpenTag) return;
+    const onRecalc = () => {
+      const dot = wrapRef.current?.querySelector(
+        `[data-tag-dot="${CSS.escape(paletteOpenTag)}"]`,
+      );
+      computePalettePos(dot);
+    };
+    window.addEventListener("resize", onRecalc);
+    document.addEventListener("scroll", onRecalc, true);
+    onRecalc();
+    return () => {
+      window.removeEventListener("resize", onRecalc);
+      document.removeEventListener("scroll", onRecalc, true);
+    };
+  }, [paletteOpenTag]);
 
   return (
     <div className={`tag-mgr ${disabled ? "is-disabled" : ""}`} ref={wrapRef}>
@@ -196,9 +247,8 @@ function TagManager({
                           type="button"
                           className="tag-mgr-color-dot"
                           style={{ "--tag-color": tagColors[t] ?? "#B9C36B" }}
-                          onClick={() =>
-                            setPaletteOpenTag((prev) => (prev === t ? null : t))
-                          }
+                          data-tag-dot={t}
+                          onClick={(e) => togglePalette(t, e)}
                           title="Change color"
                           aria-label={`Change color for ${t}`}
                         />
@@ -222,29 +272,6 @@ function TagManager({
                           Delete
                         </button>
                       </div>
-                      {paletteOpenTag === t && (
-                        <div className="tag-mgr-palette" role="radiogroup">
-                          {TAG_SWATCHES.map((c) => {
-                            const active =
-                              (tagColors[t] ?? "").toLowerCase() ===
-                              c.toLowerCase();
-                            return (
-                              <button
-                                key={`${t}-${c}`}
-                                type="button"
-                                className={`tag-mgr-swatch ${active ? "active" : ""}`}
-                                style={{ "--swatch-color": c }}
-                                aria-label={`${t} ${c}`}
-                                title={c}
-                                onClick={() => {
-                                  setTagColor?.(t, c);
-                                  setPaletteOpenTag(null);
-                                }}
-                              />
-                            );
-                          })}
-                        </div>
-                      )}
                     </>
                   )}
                 </div>
@@ -255,6 +282,41 @@ function TagManager({
           <div className="tag-mgr-hint">Tip: tags are case-insensitive.</div>
         </div>
       )}
+
+      {open && paletteOpenTag
+        ? createPortal(
+            <div
+              ref={paletteRef}
+              className="tag-mgr-palette"
+              role="radiogroup"
+              style={{
+                top: `${palettePos.top}px`,
+                left: `${palettePos.left}px`,
+              }}
+            >
+              {TAG_SWATCHES.map((c) => {
+                const active =
+                  (tagColors[paletteOpenTag] ?? "").toLowerCase() ===
+                  c.toLowerCase();
+                return (
+                  <button
+                    key={`${paletteOpenTag}-${c}`}
+                    type="button"
+                    className={`tag-mgr-swatch ${active ? "active" : ""}`}
+                    style={{ "--swatch-color": c }}
+                    aria-label={`${paletteOpenTag} ${c}`}
+                    title={c}
+                    onClick={() => {
+                      setTagColor?.(paletteOpenTag, c);
+                      setPaletteOpenTag(null);
+                    }}
+                  />
+                );
+              })}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

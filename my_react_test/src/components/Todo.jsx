@@ -77,16 +77,20 @@ function Todo({
       if (!btn) return;
 
       const r = btn.getBoundingClientRect();
+      const listRect = btn.closest(".now-list")?.getBoundingClientRect?.();
       const vw = window.innerWidth;
       const vh = window.innerHeight;
 
-      const gap = 4;
+      const gap = 6;
       const popW = 10;
-      const itemH = 20;
-      const popH = Math.min(8 + tagOptions.length * itemH, 100);
+      const itemH = 22;
+      const popH = Math.min(8 + tagOptions.length * itemH, 96);
 
-      const spaceBelow = vh - r.bottom - gap;
-      const spaceAbove = r.top - gap;
+      const boundBottom = listRect ? listRect.bottom : vh;
+      const boundTop = listRect ? listRect.top : 8;
+
+      const spaceBelow = boundBottom - r.bottom - gap;
+      const spaceAbove = r.top - boundTop - gap;
       const shouldOpenUp = spaceBelow < popH && spaceAbove > spaceBelow;
 
       let top = shouldOpenUp ? r.top - gap - popH : r.bottom + gap;
