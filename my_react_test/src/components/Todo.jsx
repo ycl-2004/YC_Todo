@@ -286,7 +286,7 @@ function Todo({
                 title={
                   canStart ? "Start" : "Start (only the next task in order)"
                 }
-                disabled={!canStart || isLocked}
+                disabled={!canStart}
               >
                 <MdPlayArrow />
               </button>

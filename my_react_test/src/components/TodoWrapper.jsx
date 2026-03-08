@@ -412,7 +412,6 @@ function TodoWrapper() {
   }, [status, activeTodo]);
 
   const remainingCount = allIncomplete.length;
-  const nextTodoToStart = visibleIncomplete[0] || null;
 
   // -----------------------------
   // Notification mode (NEW)
@@ -423,6 +422,11 @@ function TodoWrapper() {
     const raw = localStorage.getItem(STORAGE_KEY);
     const data = raw ? safeParse(raw, null) : null;
     return data?.ui?.notificationMode ?? "sound";
+  });
+  const [startMode, setStartMode] = useState(() => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const data = raw ? safeParse(raw, null) : null;
+    return data?.ui?.startMode ?? "strict";
   });
 
   const [showNotifyPanel, setShowNotifyPanel] = useState(false);
@@ -1009,6 +1013,7 @@ function TodoWrapper() {
       ui: {
         showCompleted,
         notificationMode, // ✅ NEW
+        startMode,
         sound: {
           name: soundName,
           volume: soundVolume,
@@ -1029,6 +1034,7 @@ function TodoWrapper() {
     soundVolume,
     soundPath,
     notificationMode,
+    startMode,
   ]);
 
   useEffect(() => {
@@ -1415,8 +1421,8 @@ function TodoWrapper() {
   // CRUD
   // -----------------------------
   const addTodo = (content, minutes, tag) => {
-    setTodos([
-      ...todos,
+    setTodos((prev) => [
+      ...prev,
       {
         content,
         id: Math.random(),
@@ -1430,13 +1436,13 @@ function TodoWrapper() {
 
   const deleteTodo = (id) => {
     if (isLocked) return;
-    setTodos(todos.filter((todo) => todo.id !== id));
+    setTodos((prev) => prev.filter((todo) => todo.id !== id));
   };
 
   const toggleComplete = (id) => {
     if (isLocked) return;
-    setTodos(
-      todos.map((todo) =>
+    setTodos((prev) =>
+      prev.map((todo) =>
         todo.id === id ? { ...todo, isCompleted: !todo.isCompleted } : todo,
       ),
     );
@@ -1482,6 +1488,24 @@ function TodoWrapper() {
     setTagColors((prev) => ({ ...prev, [tag]: color }));
   };
 
+  const handleRenameTag = (fromTag, toTag) => {
+    if (!fromTag || !toTag || fromTag === toTag) return;
+    setTodos((prev) =>
+      prev.map((todo) =>
+        todo.tag === fromTag ? { ...todo, tag: toTag } : todo,
+      ),
+    );
+  };
+
+  const handleDeleteTag = (deletedTag, fallbackTag = "Study") => {
+    if (!deletedTag) return;
+    setTodos((prev) =>
+      prev.map((todo) =>
+        todo.tag === deletedTag ? { ...todo, tag: fallbackTag } : todo,
+      ),
+    );
+  };
+
   const chipStyleFor = (tag, active = false) => {
     if (tag === "All") return undefined;
     const c = tagColors[tag];
@@ -1494,12 +1518,24 @@ function TodoWrapper() {
     };
   };
 
+  const canStartInCurrentMode = (todo) => {
+    if (!todo || todo.isCompleted) return false;
+    if (startMode === "free") return true;
+    return visibleIncomplete[0]?.id === todo.id;
+  };
+
   // -----------------------------
   // Focus controls
   // -----------------------------
   const startTodo = (todo) => {
     if (!todo) return;
-    if (visibleIncomplete[0]?.id !== todo.id) return;
+    if (!canStartInCurrentMode(todo)) return;
+
+    if (activeId && activeId !== todo.id) {
+      setQuietOverlayOpen(false);
+      stopSound();
+      stopAlarmNative().catch(() => null);
+    }
 
     setActiveId(todo.id);
     const totalSec = (todo.minutes ?? 25) * 60;
@@ -1577,7 +1613,6 @@ function TodoWrapper() {
   // -----------------------------
   useEffect(() => {
     const onKey = (e) => {
-      console.log("KEY:", e.key, e.code, "target:", e.target?.tagName);
       if (quietOverlayOpen) return;
       if (e.key !== "Enter") return;
       if (e.isComposing) return;
@@ -1968,6 +2003,21 @@ function TodoWrapper() {
             </div>
 
             <div className="now-bar-right">
+              <button
+                type="button"
+                className="mode-chip"
+                onClick={() =>
+                  setStartMode((m) => (m === "strict" ? "free" : "strict"))
+                }
+                title={
+                  startMode === "strict"
+                    ? "Strict mode: only top task can start"
+                    : "Free mode: any task can start"
+                }
+              >
+                {startMode === "strict" ? "Mode: Strict" : "Mode: Free"}
+              </button>
+
               <span className="remaining-chip">
                 <b>{remainingCount}</b> <span>REMAINING</span>
               </span>
@@ -2018,6 +2068,8 @@ function TodoWrapper() {
                   disabled={isLocked}
                   tagColors={tagColors}
                   setTagColor={setTagColor}
+                  onRenameTag={handleRenameTag}
+                  onDeleteTag={handleDeleteTag}
                 />
               </div>
             </div>
@@ -2025,8 +2077,7 @@ function TodoWrapper() {
             <div className="now-list">
               {visibleIncomplete.map((todo, index) => {
                 const isActive = todo.id === activeId;
-                const canStart =
-                  !isLocked && visibleIncomplete[0]?.id === todo.id;
+                const canStart = canStartInCurrentMode(todo);
 
                 return (
                   <Todo

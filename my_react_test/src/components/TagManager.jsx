@@ -24,6 +24,8 @@ function TagManager({
   disabled,
   tagColors = {},
   setTagColor,
+  onRenameTag,
+  onDeleteTag,
 }) {
   const [open, setOpen] = useState(false);
   const [newTag, setNewTag] = useState("");
@@ -105,6 +107,7 @@ function TagManager({
     if (nextLower !== editing.toLowerCase() && lowerSet.has(nextLower)) return;
 
     setTags((prev) => prev.map((x) => (x === editing ? next : x)));
+    onRenameTag?.(editing, next);
 
     // keep activeTag consistent
     if (activeTag === editing) setActiveTag(next);
@@ -114,7 +117,9 @@ function TagManager({
   };
 
   const removeTag = (t) => {
+    const fallbackTag = tags.find((x) => x !== t) ?? "Study";
     setTags((prev) => prev.filter((x) => x !== t));
+    onDeleteTag?.(t, fallbackTag);
 
     // if deleting active -> go to All
     if (activeTag === t) setActiveTag("All");
