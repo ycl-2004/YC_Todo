@@ -178,7 +178,6 @@ function TodoWrapper() {
   const [openTagPickerId, setOpenTagPickerId] = useState(null);
 
   const isLocked = status === "running" || status === "paused";
-  const [openTagPickerId, setOpenTagPickerId] = useState(null);
 
   // -----------------------------
   // Drag reorder
@@ -1428,10 +1427,7 @@ function TodoWrapper() {
   const changeTodoTag = (id, nextTag) => {
     if (isLocked) return;
     if (!nextTag) return;
-<<<<<<< Updated upstream
 
-=======
->>>>>>> Stashed changes
     setTodos((prev) =>
       prev.map((t) => (t.id === id ? { ...t, tag: nextTag } : t)),
     );

@@ -1,9 +1,5 @@
-<<<<<<< Updated upstream
-import { useEffect, useMemo, useRef } from "react";
-=======
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
->>>>>>> Stashed changes
 import {
   MdDelete,
   MdEdit,
@@ -34,39 +30,28 @@ function Todo({
   onToggleTagPicker,
   onCloseTagPicker,
 
-  // ✅ Pointer-drag reorder（用 wrapper 那套）
+  // Pointer-drag reorder
   onPointerDragStart,
 }) {
   const tagWrapRef = useRef(null);
-<<<<<<< Updated upstream
-
-  const tagOptions = useMemo(() => {
-    const base = Array.isArray(tags) ? tags : [];
-    const curr = todo.tag ?? "Study";
-    return base.includes(curr) ? base : [...base, curr];
-=======
   const tagBtnRef = useRef(null);
   const tagPickerRef = useRef(null);
+
   const [openUp, setOpenUp] = useState(false);
-  const [pickerPos, setPickerPos] = useState({ top: 0, left: 0, width: 200 });
+  const [pickerPos, setPickerPos] = useState({ top: 0, left: 0, width: 20 });
 
   const tagOptions = useMemo(() => {
     const base = Array.isArray(tags) ? tags : [];
     const current = todo.tag ?? "Study";
     return base.includes(current) ? base : [...base, current];
->>>>>>> Stashed changes
   }, [tags, todo.tag]);
 
   useEffect(() => {
     if (!isTagPickerOpen) return;
 
     const onDown = (e) => {
-      if (!tagWrapRef.current) return;
-      if (tagWrapRef.current.contains(e.target)) return;
-<<<<<<< Updated upstream
-=======
+      if (tagWrapRef.current?.contains(e.target)) return;
       if (tagPickerRef.current?.contains(e.target)) return;
->>>>>>> Stashed changes
       onCloseTagPicker?.();
     };
 
@@ -76,8 +61,7 @@ function Todo({
 
   useEffect(() => {
     if (!isTagPickerOpen) return;
-<<<<<<< Updated upstream
-=======
+
     const updatePosition = () => {
       const btn = tagBtnRef.current;
       if (!btn) return;
@@ -86,10 +70,10 @@ function Todo({
       const vw = window.innerWidth;
       const vh = window.innerHeight;
 
-      const gap = 8;
-      const popW = 100;
+      const gap = 4;
+      const popW = 10;
       const itemH = 20;
-      const popH = Math.min(8 + tagOptions.length * itemH, 150);
+      const popH = Math.min(8 + tagOptions.length * itemH, 100);
 
       const spaceBelow = vh - r.bottom - gap;
       const spaceAbove = r.top - gap;
@@ -117,19 +101,15 @@ function Todo({
 
   useEffect(() => {
     if (!isTagPickerOpen) return;
->>>>>>> Stashed changes
     if (!isLocked) return;
     onCloseTagPicker?.();
   }, [isLocked, isTagPickerOpen, onCloseTagPicker]);
 
-<<<<<<< Updated upstream
-=======
   useEffect(() => {
     if (isTagPickerOpen) return;
     setOpenUp(false);
   }, [isTagPickerOpen]);
 
->>>>>>> Stashed changes
   if (todo.isEditing) {
     return (
       <div className="todo editing">
@@ -147,27 +127,8 @@ function Todo({
   const isRunning = isActive && status === "running";
   const canEditTag =
     !todo.isCompleted && typeof onToggleTagPicker === "function";
-
   const canDrag = !isLocked && !todo.isCompleted;
 
-<<<<<<< Updated upstream
-  return (
-    <div
-      className={`todo ${todo.isCompleted ? "completed" : ""} ${
-        disableRow ? "locked" : ""
-      } ${isTagPickerOpen ? "tag-picker-open" : ""}`}
-      data-todo-id={String(todo.id)}
-      onPointerDown={(e) => {
-        if (!canDrag) return;
-        if (e.button !== 0) return;
-
-        const tag = e.target?.tagName?.toLowerCase?.();
-        if (
-          tag === "button" ||
-          tag === "input" ||
-          tag === "svg" ||
-          tag === "path"
-=======
   const tagPickerPopover =
     canEditTag && isTagPickerOpen
       ? createPortal(
@@ -200,7 +161,6 @@ function Todo({
             })}
           </div>,
           document.body,
->>>>>>> Stashed changes
         )
       : null;
 
@@ -221,100 +181,19 @@ function Todo({
             tag === "input" ||
             tag === "svg" ||
             tag === "path"
-          )
+          ) {
             return;
+          }
 
-<<<<<<< Updated upstream
-        <div className="todo-main">
-          <span className="todo-text" title={todo.content}>
-            {todo.content}
-          </span>
-        </div>
-      </div>
-
-      <div className="todo-right">
-        <div className="todo-badge-stack">
-          <div
-            className={`todo-tag-wrap ${isTagPickerOpen ? "open" : ""}`}
-            ref={tagWrapRef}
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              className="todo-tag todo-tag-btn"
-              disabled={isLocked}
-              onClick={onToggleTagPicker}
-              title={isLocked ? "Tag locked while timer is active" : "Edit tag"}
-            >
-              {todo.tag}
-            </button>
-
-            <div className={`todo-tag-picker ${isTagPickerOpen ? "open" : ""}`}>
-              {tagOptions.map((t) => {
-                const active = t === todo.tag;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    className={`todo-tag-option ${active ? "active" : ""}`}
-                    onClick={() => {
-                      if (!active) onChangeTag?.(todo.id, t);
-                      onCloseTagPicker?.();
-                    }}
-                  >
-                    {t}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <span className="todo-meta">{todo.minutes}m</span>
-        </div>
-        <div className="todo-actions">
-          {isActive ? (
-            <>
-              <button
-                className="icon-btn"
-                onClick={isRunning ? onPause : onStart}
-                aria-label={isRunning ? "Pause" : "Start"}
-                title={isRunning ? "Pause" : "Start"}
-              >
-                {isRunning ? <MdPause /> : <MdPlayArrow />}
-              </button>
-
-              <button
-                className="icon-btn ok"
-                onClick={onFinish}
-                aria-label="Finish"
-                title="Finish"
-              >
-                <MdCheckCircle />
-              </button>
-            </>
-          ) : (
-            <button
-              className="icon-btn"
-              onClick={onStart}
-              aria-label="Start"
-              title={canStart ? "Start" : "Start (only the next task in order)"}
-              disabled={!canStart || isLocked}
-            >
-              <MdPlayArrow />
-            </button>
-=======
           e.preventDefault();
           onPointerDragStart?.(todo.id, e.clientX, e.clientY);
         }}
       >
         <div className="todo-left">
-          {/* ✅ Only show order badge when NOT completed + NOT hidden */}
           {!hideOrder && !todo.isCompleted && (
             <span className="drag-handle" aria-hidden="true">
               {order}
             </span>
->>>>>>> Stashed changes
           )}
 
           <input
@@ -359,6 +238,7 @@ function Todo({
             )}
             <span className="todo-meta">{todo.minutes}m</span>
           </div>
+
           <div className="todo-actions">
             {isActive ? (
               <>
