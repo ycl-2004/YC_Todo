@@ -493,6 +493,7 @@ function TodoWrapper() {
       : entryFilter === "notes"
         ? "NOTES REMAINING"
         : "REMAINING";
+  const entryAllLabel = activeTag === "All" ? "Everything" : activeTag;
 
   // -----------------------------
   // Notification mode (NEW)
@@ -2149,7 +2150,7 @@ function TodoWrapper() {
                   className={`entry-filter-chip ${entryFilter === "all" ? "active" : ""}`}
                   onClick={() => setEntryFilter("all")}
                 >
-                  Everything
+                  {entryAllLabel}
                 </button>
                 <button
                   type="button"
