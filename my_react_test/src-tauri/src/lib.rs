@@ -22,14 +22,54 @@ use tauri_plugin_global_shortcut::{
 struct AlarmState(Mutex<Option<Child>>);
 
 #[cfg(target_os = "macos")]
+use cocoa::appkit::{NSOpenPanel, NSModalResponse, NSSavePanel};
+#[cfg(target_os = "macos")]
+use cocoa::base::{id, nil, NO, YES};
+#[cfg(target_os = "macos")]
+use cocoa_foundation::foundation::{NSArray, NSString, NSURL};
+#[cfg(target_os = "macos")]
+use objc::{msg_send, sel, sel_impl};
+#[cfg(target_os = "macos")]
 fn activate_app_now() {
-  use objc::{class, msg_send, sel, sel_impl};
+  use objc::class;
 
   unsafe {
     let nsapp: *mut objc::runtime::Object =
       msg_send![class!(NSApplication), sharedApplication];
     let _: () = msg_send![nsapp, activateIgnoringOtherApps: true];
   }
+}
+
+#[cfg(target_os = "macos")]
+unsafe fn path_buf_to_nsurl(path: &std::path::Path) -> id {
+  let path_str = path.to_string_lossy();
+  let ns_path = NSString::alloc(nil).init_str(path_str.as_ref());
+  NSURL::fileURLWithPath_(nil, ns_path)
+}
+
+#[cfg(target_os = "macos")]
+unsafe fn nsurl_to_path_string(url: id) -> Option<String> {
+  if url == nil {
+    return None;
+  }
+
+  let ns_path: id = objc::msg_send![url, path];
+  if ns_path == nil {
+    return None;
+  }
+
+  let c_str = NSString::UTF8String(ns_path);
+  if c_str.is_null() {
+    return None;
+  }
+
+  Some(std::ffi::CStr::from_ptr(c_str).to_string_lossy().into_owned())
+}
+
+#[cfg(target_os = "macos")]
+unsafe fn build_json_types_array() -> id {
+  let ext = NSString::alloc(nil).init_str("json");
+  NSArray::arrayWithObject(nil, ext)
 }
 
 /// -----------------------------
@@ -412,36 +452,174 @@ async fn pick_audio(app: tauri::AppHandle) -> Result<Option<String>, String> {
 
 #[tauri::command]
 async fn pick_import_file(app: tauri::AppHandle) -> Result<Option<String>, String> {
-  let app_hide = app.clone();
-  let _ = app.run_on_main_thread(move || {
-    if app_hide.is_popover_shown() {
-      app_hide.hide_popover();
-    }
-  });
+  #[cfg(target_os = "macos")]
+  {
+    let (tx, rx) = std::sync::mpsc::channel::<Option<String>>();
+    let app_ui = app.clone();
 
-  let app_for_pick = app.clone();
-  let picked = tauri::async_runtime::spawn_blocking(move || {
-    app_for_pick
+    let _ = app.run_on_main_thread(move || unsafe {
+      if app_ui.is_popover_shown() {
+        app_ui.hide_popover();
+      }
+
+      activate_app_now();
+
+      let panel: id = NSOpenPanel::openPanel(nil);
+      let _: () = objc::msg_send![panel, center];
+      let _: () = objc::msg_send![panel, setMessage: NSString::alloc(nil).init_str("Import YC Todo Data")];
+      let _: () = objc::msg_send![panel, setAllowedFileTypes: build_json_types_array()];
+      panel.setCanChooseFiles_(YES);
+      panel.setCanChooseDirectories_(NO);
+      panel.setAllowsMultipleSelection_(NO);
+
+      if let Ok(downloads_dir) = app_ui.path().download_dir() {
+        panel.setDirectoryURL(path_buf_to_nsurl(&downloads_dir));
+      }
+
+      let result = if panel.runModal() == NSModalResponse::NSModalResponseOk {
+        nsurl_to_path_string(panel.URL())
+      } else {
+        None
+      };
+
+      activate_app_now();
+      let _ = app_ui.show_popover();
+      let _ = tx.send(result);
+    });
+
+    return tauri::async_runtime::spawn_blocking(move || rx.recv().ok().flatten())
+      .await
+      .map_err(|_| "dialog join error".to_string());
+  }
+
+  #[cfg(not(target_os = "macos"))]
+  {
+  let (tx, rx) = std::sync::mpsc::channel::<Option<String>>();
+
+  let app_ui = app.clone();
+  let _ = app.run_on_main_thread(move || {
+    if app_ui.is_popover_shown() {
+      app_ui.hide_popover();
+    }
+
+    let app_after = app_ui.clone();
+    app_ui
       .dialog()
       .file()
       .add_filter("JSON", &["json"])
-      .blocking_pick_file()
-      .map(|p| p.to_string())
-  })
+      .pick_file(move |path_opt| {
+        let picked = path_opt.map(|p| p.to_string());
+
+        let app_restore = app_after.clone();
+        let _ = app_after.run_on_main_thread(move || {
+          #[cfg(target_os = "macos")]
+          {
+            activate_app_now();
+            let _ = app_restore.set_activation_policy(ActivationPolicy::Accessory);
+          }
+          let _ = app_restore.show_popover();
+        });
+
+        let _ = tx.send(picked);
+      });
+  });
+
+  let picked = tauri::async_runtime::spawn_blocking(move || rx.recv().ok().flatten())
     .await
     .map_err(|_| "dialog join error".to_string())?;
 
-  let app_restore = app.clone();
-  let _ = app.run_on_main_thread(move || {
-    #[cfg(target_os = "macos")]
-    {
+  Ok(picked)
+  }
+}
+
+#[tauri::command]
+async fn pick_export_file(
+  app: tauri::AppHandle,
+  default_file_name: String,
+) -> Result<Option<String>, String> {
+  #[cfg(target_os = "macos")]
+  {
+    let (tx, rx) = std::sync::mpsc::channel::<Option<String>>();
+    let app_ui = app.clone();
+
+    let _ = app.run_on_main_thread(move || unsafe {
+      if app_ui.is_popover_shown() {
+        app_ui.hide_popover();
+      }
+
       activate_app_now();
-      let _ = app_restore.set_activation_policy(ActivationPolicy::Accessory);
+
+      let panel: id = NSSavePanel::savePanel(nil);
+      let _: () = objc::msg_send![panel, center];
+      let _: () = objc::msg_send![panel, setMessage: NSString::alloc(nil).init_str("Export YC Todo Data")];
+      let _: () = objc::msg_send![panel, setAllowedFileTypes: build_json_types_array()];
+      let _: () = objc::msg_send![panel, setNameFieldStringValue: NSString::alloc(nil).init_str(&default_file_name)];
+      panel.setCanCreateDirectories(YES);
+
+      if let Ok(downloads_dir) = app_ui.path().download_dir() {
+        panel.setDirectoryURL(path_buf_to_nsurl(&downloads_dir));
+      }
+
+      let result = if panel.runModal() == NSModalResponse::NSModalResponseOk {
+        nsurl_to_path_string(panel.URL())
+      } else {
+        None
+      };
+
+      activate_app_now();
+      let _ = app_ui.show_popover();
+      let _ = tx.send(result);
+    });
+
+    return tauri::async_runtime::spawn_blocking(move || rx.recv().ok().flatten())
+      .await
+      .map_err(|_| "dialog join error".to_string());
+  }
+
+  #[cfg(not(target_os = "macos"))]
+  {
+  let (tx, rx) = std::sync::mpsc::channel::<Option<String>>();
+
+  let app_ui = app.clone();
+  let _ = app.run_on_main_thread(move || {
+    if app_ui.is_popover_shown() {
+      app_ui.hide_popover();
     }
-    let _ = app_restore.show_popover();
+
+    let mut dialog = app_ui
+      .dialog()
+      .file()
+      .add_filter("JSON", &["json"])
+      .set_file_name(default_file_name);
+
+    if let Ok(downloads_dir) = app_ui.path().download_dir() {
+      dialog = dialog.set_directory(downloads_dir);
+    }
+
+    let app_after = app_ui.clone();
+    dialog.save_file(move |path_opt| {
+      let picked = path_opt.map(|p| p.to_string());
+
+      let app_restore = app_after.clone();
+      let _ = app_after.run_on_main_thread(move || {
+        #[cfg(target_os = "macos")]
+        {
+          activate_app_now();
+          let _ = app_restore.set_activation_policy(ActivationPolicy::Accessory);
+        }
+        let _ = app_restore.show_popover();
+      });
+
+      let _ = tx.send(picked);
+    });
   });
 
+  let picked = tauri::async_runtime::spawn_blocking(move || rx.recv().ok().flatten())
+    .await
+    .map_err(|_| "dialog join error".to_string())?;
+
   Ok(picked)
+  }
 }
 
 /// ✅ Background-safe alarm playback (macOS)
@@ -725,6 +903,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       pick_audio,
       pick_import_file,
+      pick_export_file,
       play_alarm,
       stop_alarm,
       hide_popover_cmd,

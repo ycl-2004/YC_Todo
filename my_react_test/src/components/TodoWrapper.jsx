@@ -2,8 +2,7 @@ import CreateForm from "./CreateForm";
 import Todo from "./Todo";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { downloadDir, join, normalize, desktopDir } from "@tauri-apps/api/path";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { downloadDir, normalize, desktopDir } from "@tauri-apps/api/path";
 import { readFile, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { listen } from "@tauri-apps/api/event";
 import { MdDeleteSweep } from "react-icons/md";
@@ -648,6 +647,7 @@ function TodoWrapper() {
   const [showNotifyPanel, setShowNotifyPanel] = useState(false);
   const [showTodaySummary, setShowTodaySummary] = useState(false);
   const [flashNotice, setFlashNotice] = useState(null);
+  const fileDialogInFlightRef = useRef(false);
 
   // Quiet overlay (NEW)
   const [quietOverlayOpen, setQuietOverlayOpen] = useState(false);
@@ -666,7 +666,20 @@ function TodoWrapper() {
     return () => window.clearInterval(id);
   }, []);
 
-  const showAppAndFocusBestEffort = async () => {
+  const showAppAndFocusBestEffort = async (attempts = [0, 120, 320, 650]) => {
+    const runAttempt = (delay) => {
+      window.setTimeout(() => {
+        invoke("show_popover_cmd").catch(() => {});
+        try {
+          window.focus();
+        } catch {}
+      }, delay);
+    };
+
+    for (const delay of attempts) {
+      runAttempt(delay);
+    }
+
     try {
       await invoke("show_popover_cmd");
     } catch (e) {
@@ -675,12 +688,6 @@ function TodoWrapper() {
     try {
       window.focus();
     } catch {}
-    window.setTimeout(() => {
-      invoke("show_popover_cmd").catch(() => {});
-      try {
-        window.focus();
-      } catch {}
-    }, 120);
   };
 
   // -----------------------------
@@ -1980,16 +1987,14 @@ function TodoWrapper() {
   };
 
   const exportLocalData = async () => {
+    if (fileDialogInFlightRef.current) return;
+    fileDialogInFlightRef.current = true;
+
     try {
       const fileName = `yc-todo-backup-${getLocalDayKey()}.json`;
-      const downloadsPath = await downloadDir().catch(() => null);
-      await invoke("hide_popover_cmd").catch(() => {});
-      const filePath = await save({
-        title: "Export YC Todo Data",
-        defaultPath: downloadsPath ? await join(downloadsPath, fileName) : fileName,
-        filters: [{ name: "JSON", extensions: ["json"] }],
+      const filePath = await invoke("pick_export_file", {
+        defaultFileName: fileName,
       });
-      await showAppAndFocusBestEffort();
       if (!filePath) return;
 
       const normalizedFilePath = await normalize(filePath);
@@ -2010,20 +2015,17 @@ function TodoWrapper() {
       console.error("[export] failed:", e);
       showFlashNotice("Export failed: " + String(e), "error");
       await showAppAndFocusBestEffort();
+    } finally {
+      fileDialogInFlightRef.current = false;
     }
   };
 
   const importLocalData = async () => {
+    if (fileDialogInFlightRef.current) return;
+    fileDialogInFlightRef.current = true;
+
     try {
-      const selected = await open({
-        title: "Import YC Todo Data",
-        multiple: false,
-        directory: false,
-        filters: [{ name: "JSON", extensions: ["json"] }],
-      });
-
-      await showAppAndFocusBestEffort();
-
+      const selected = await invoke("pick_import_file");
       if (!selected || Array.isArray(selected)) return;
 
       const raw = await readTextFile(selected);
@@ -2116,6 +2118,8 @@ function TodoWrapper() {
       console.error("[import] failed:", e);
       showFlashNotice("Import failed: " + String(e), "error");
       await showAppAndFocusBestEffort();
+    } finally {
+      fileDialogInFlightRef.current = false;
     }
   };
 
