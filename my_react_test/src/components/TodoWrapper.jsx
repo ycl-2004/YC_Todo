@@ -160,6 +160,41 @@ function isPathWithinAllowedDirs(path, allowedDirs) {
   );
 }
 
+function getFlashNoticeMeta(notice) {
+  const message = String(notice?.message || "");
+  const lowered = message.toLowerCase();
+
+  if (lowered.includes("data imported successfully")) {
+    return {
+      icon: "↓",
+      title: "Import complete",
+      detail: "Your tasks, tags, and settings are now loaded.",
+    };
+  }
+
+  if (lowered.includes("data exported successfully")) {
+    return {
+      icon: "↑",
+      title: "Export complete",
+      detail: "A fresh backup file has been saved.",
+    };
+  }
+
+  if (notice?.tone === "error") {
+    return {
+      icon: "!",
+      title: "Action failed",
+      detail: message,
+    };
+  }
+
+  return {
+    icon: "✓",
+    title: "Done",
+    detail: message,
+  };
+}
+
 const formatShortcutDisplay = ({ meta, shift, alt, ctrl }, code) => {
   const parts = [];
   if (ctrl) parts.push("⌃");
@@ -839,10 +874,30 @@ function TodoWrapper() {
     setFlashNotice({ id: Date.now(), message, tone });
   };
 
+  const dismissFlashNotice = () => {
+    setFlashNotice(null);
+  };
+
   useEffect(() => {
     if (!flashNotice) return;
-    const id = window.setTimeout(() => setFlashNotice(null), 2200);
+    const id = window.setTimeout(() => setFlashNotice(null), 5000);
     return () => window.clearTimeout(id);
+  }, [flashNotice]);
+
+  useEffect(() => {
+    if (!flashNotice) return;
+
+    const onKeyDown = (e) => {
+      if (e.isComposing) return;
+      if (e.key !== "Enter" && e.key !== "Escape") return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      dismissFlashNotice();
+    };
+
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [flashNotice]);
 
   const stopAlarmNative = async () => {
@@ -2137,7 +2192,26 @@ function TodoWrapper() {
     <>
       {flashNotice && (
         <div className={`flash-notice ${flashNotice.tone}`}>
-          {flashNotice.message}
+          <div className="flash-notice-icon">
+            {getFlashNoticeMeta(flashNotice).icon}
+          </div>
+          <div className="flash-notice-copy">
+            <div className="flash-notice-title">
+              {getFlashNoticeMeta(flashNotice).title}
+            </div>
+            <div className="flash-notice-detail">
+              {getFlashNoticeMeta(flashNotice).detail}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="flash-notice-close"
+            onClick={dismissFlashNotice}
+            aria-label="Close notification"
+            title="Close"
+          >
+            ×
+          </button>
         </div>
       )}
 
