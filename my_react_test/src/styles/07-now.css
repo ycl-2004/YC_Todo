@@ -507,10 +507,18 @@
 
 .tag-mgr-row.is-draggable {
   cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
 }
 
 .tag-mgr-row.is-draggable:active {
   cursor: grabbing;
+}
+
+.tag-mgr-row.is-draggable * {
+  -webkit-user-drag: none;
 }
 
 .tag-mgr-row:hover {
@@ -643,6 +651,15 @@
   color: var(--muted);
   text-align: center;
   letter-spacing: 0.15px;
+}
+
+body.is-tag-mgr-reordering,
+body.is-tag-mgr-reordering * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-user-drag: none !important;
+  -webkit-touch-callout: none !important;
+  cursor: grabbing !important;
 }
 
 /* ✅ keep each todo row height consistent (even when only 1–2 items) */

@@ -368,6 +368,7 @@ function TagManager({
                   className={`tag-mgr-row ${!isEditing ? "is-draggable" : ""}`}
                   key={t}
                   data-tag-row={t}
+                  onDragStart={(e) => e.preventDefault()}
                   onPointerDown={(e) => {
                     if (isEditing) return;
                     if (e.button !== 0) return;
