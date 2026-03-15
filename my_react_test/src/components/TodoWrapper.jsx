@@ -2,6 +2,7 @@ import CreateForm from "./CreateForm";
 import Todo from "./Todo";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { downloadDir, join, normalize, desktopDir } from "@tauri-apps/api/path";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readFile, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { listen } from "@tauri-apps/api/event";
@@ -142,6 +143,21 @@ function buildExportPayload() {
     exportedAt: new Date().toISOString(),
     data,
   };
+}
+
+async function getAllowedFsDirs() {
+  const results = await Promise.allSettled([downloadDir(), desktopDir()]);
+  const dirs = results
+    .filter((result) => result.status === "fulfilled" && result.value)
+    .map((result) => result.value);
+
+  return Promise.all(dirs.map((dir) => normalize(dir)));
+}
+
+function isPathWithinAllowedDirs(path, allowedDirs) {
+  return allowedDirs.some(
+    (dir) => path === dir || path.startsWith(`${dir}/`) || path.startsWith(`${dir}\\`),
+  );
 }
 
 const formatShortcutDisplay = ({ meta, shift, alt, ctrl }, code) => {
@@ -596,6 +612,7 @@ function TodoWrapper() {
 
   const [showNotifyPanel, setShowNotifyPanel] = useState(false);
   const [showTodaySummary, setShowTodaySummary] = useState(false);
+  const [flashNotice, setFlashNotice] = useState(null);
 
   // Quiet overlay (NEW)
   const [quietOverlayOpen, setQuietOverlayOpen] = useState(false);
@@ -616,13 +633,19 @@ function TodoWrapper() {
 
   const showAppAndFocusBestEffort = async () => {
     try {
-      await invoke("show_popover_cmd"); // ✅ 关键：让 menubar popover 真正弹出来
+      await invoke("show_popover_cmd");
     } catch (e) {
       console.warn("show_popover_cmd failed", e);
     }
     try {
       window.focus();
     } catch {}
+    window.setTimeout(() => {
+      invoke("show_popover_cmd").catch(() => {});
+      try {
+        window.focus();
+      } catch {}
+    }, 120);
   };
 
   // -----------------------------
@@ -811,6 +834,16 @@ function TodoWrapper() {
       return false;
     }
   };
+
+  const showFlashNotice = (message, tone = "success") => {
+    setFlashNotice({ id: Date.now(), message, tone });
+  };
+
+  useEffect(() => {
+    if (!flashNotice) return;
+    const id = window.setTimeout(() => setFlashNotice(null), 2200);
+    return () => window.clearTimeout(id);
+  }, [flashNotice]);
 
   const stopAlarmNative = async () => {
     try {
@@ -1893,19 +1926,35 @@ function TodoWrapper() {
 
   const exportLocalData = async () => {
     try {
+      const fileName = `yc-todo-backup-${getLocalDayKey()}.json`;
+      const downloadsPath = await downloadDir().catch(() => null);
+      await invoke("hide_popover_cmd").catch(() => {});
       const filePath = await save({
         title: "Export YC Todo Data",
-        defaultPath: `yc-todo-backup-${getLocalDayKey()}.json`,
+        defaultPath: downloadsPath ? await join(downloadsPath, fileName) : fileName,
         filters: [{ name: "JSON", extensions: ["json"] }],
       });
+      await showAppAndFocusBestEffort();
       if (!filePath) return;
 
+      const normalizedFilePath = await normalize(filePath);
+      const allowedDirs = await getAllowedFsDirs();
+      if (!isPathWithinAllowedDirs(normalizedFilePath, allowedDirs)) {
+        showFlashNotice(
+          "Export can only save to Downloads or Desktop with the current app permissions.",
+          "error",
+        );
+        return;
+      }
+
       const payload = buildExportPayload();
-      await writeTextFile(filePath, JSON.stringify(payload, null, 2));
-      alert("Data exported successfully.");
+      await writeTextFile(normalizedFilePath, JSON.stringify(payload, null, 2));
+      showFlashNotice("Data exported successfully.");
+      await showAppAndFocusBestEffort();
     } catch (e) {
       console.error("[export] failed:", e);
-      alert("Export failed: " + String(e));
+      showFlashNotice("Export failed: " + String(e), "error");
+      await showAppAndFocusBestEffort();
     }
   };
 
@@ -1917,6 +1966,8 @@ function TodoWrapper() {
         directory: false,
         filters: [{ name: "JSON", extensions: ["json"] }],
       });
+
+      await showAppAndFocusBestEffort();
 
       if (!selected || Array.isArray(selected)) return;
 
@@ -1934,11 +1985,82 @@ function TodoWrapper() {
         else localStorage.removeItem(key);
       });
 
-      alert("Data imported successfully. YC Todo will reload now.");
-      window.location.reload();
+      const importedTagsRaw = localStorage.getItem(TAGS_KEY);
+      const importedTags = importedTagsRaw ? safeParse(importedTagsRaw, null) : null;
+      const normalizedTags = Array.isArray(importedTags) && importedTags.length
+        ? Array.from(
+            new Map(
+              importedTags.map((tag) => [String(tag).trim(), String(tag).trim()]),
+            ).values(),
+          ).filter((tag) => tag && tag !== "All")
+        : DEFAULT_TAGS;
+      setTags(normalizedTags.length ? normalizedTags : DEFAULT_TAGS);
+
+      const importedTagColorsRaw = localStorage.getItem(TAG_COLORS_KEY);
+      const importedTagColors = importedTagColorsRaw
+        ? safeParse(importedTagColorsRaw, null)
+        : null;
+      setTagColors({
+        ...DEFAULT_TAG_COLORS,
+        ...(importedTagColors && typeof importedTagColors === "object"
+          ? importedTagColors
+          : {}),
+      });
+
+      const importedSettings = safeParse(localStorage.getItem(SETTINGS_KEY), {});
+      setAccent(importedSettings?.accent ?? "#d4a5c1");
+      setThemeMode(importedSettings?.themeMode ?? "system");
+      setTitle(localStorage.getItem(TITLE_KEY) || "YC Todo");
+      setSubtitle(localStorage.getItem(`${TITLE_KEY}_subtitle`) || "记录个小生活");
+      setEntryFilter(localStorage.getItem(ENTRY_FILTER_KEY) || "all");
+      setActiveTag("All");
+      setEditing(null);
+      setOpenTagPickerId(null);
+      setShowNotifyPanel(false);
+      setShowTodaySummary(false);
+      setQuietOverlayOpen(false);
+      setQuietOverlayText("");
+      setDayTick(Date.now());
+
+      const data = readStoredData();
+      const todayKey = getLocalDayKey();
+      const savedDayKey = localStorage.getItem(LAST_ACTIVE_DAY_KEY);
+
+      setTodos(
+        data?.todos?.length
+          ? savedDayKey === todayKey
+            ? data.todos
+            : resetCompletedForNewDay(data.todos)
+          : [],
+      );
+
+      const savedStats = data?.stats;
+      setDailyStats(
+        savedStats?.dayKey === todayKey
+          ? {
+              dayKey: todayKey,
+              completedCount: Number(savedStats.completedCount ?? 0),
+              focusMinutes: Number(savedStats.focusMinutes ?? 0),
+            }
+          : createEmptyDailyStats(todayKey),
+      );
+
+      setActiveId(data?.timer?.activeId ?? null);
+      setStatus(data?.timer?.status ?? "idle");
+      setRemainingSec(data?.timer?.remainingSec ?? 0);
+      setNotificationMode(data?.ui?.notificationMode ?? "sound");
+      setStartMode(data?.ui?.startMode ?? "strict");
+      setShowCompleted(data?.ui?.showCompleted ?? false);
+      setSoundPath(data?.ui?.sound?.path ?? "");
+      setSoundName(data?.ui?.sound?.name ?? "");
+      setSoundVolume(data?.ui?.sound?.volume ?? 1);
+
+      showFlashNotice("Data imported successfully.");
+      await showAppAndFocusBestEffort();
     } catch (e) {
       console.error("[import] failed:", e);
-      alert("Import failed: " + String(e));
+      showFlashNotice("Import failed: " + String(e), "error");
+      await showAppAndFocusBestEffort();
     }
   };
 
@@ -2013,6 +2135,12 @@ function TodoWrapper() {
 
   return (
     <>
+      {flashNotice && (
+        <div className={`flash-notice ${flashNotice.tone}`}>
+          {flashNotice.message}
+        </div>
+      )}
+
       {/* ✅ Quiet mode overlay */}
       {quietOverlayOpen && (
         <div className="alarm-overlay" onMouseDown={(e) => e.stopPropagation()}>

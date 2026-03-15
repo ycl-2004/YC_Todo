@@ -21,6 +21,17 @@ use tauri_plugin_global_shortcut::{
 
 struct AlarmState(Mutex<Option<Child>>);
 
+#[cfg(target_os = "macos")]
+fn activate_app_now() {
+  use objc::{class, msg_send, sel, sel_impl};
+
+  unsafe {
+    let nsapp: *mut objc::runtime::Object =
+      msg_send![class!(NSApplication), sharedApplication];
+    let _: () = msg_send![nsapp, activateIgnoringOtherApps: true];
+  }
+}
+
 /// -----------------------------
 /// Shortcut state + persistence
 /// -----------------------------
@@ -399,6 +410,40 @@ async fn pick_audio(app: tauri::AppHandle) -> Result<Option<String>, String> {
   Ok(picked)
 }
 
+#[tauri::command]
+async fn pick_import_file(app: tauri::AppHandle) -> Result<Option<String>, String> {
+  let app_hide = app.clone();
+  let _ = app.run_on_main_thread(move || {
+    if app_hide.is_popover_shown() {
+      app_hide.hide_popover();
+    }
+  });
+
+  let app_for_pick = app.clone();
+  let picked = tauri::async_runtime::spawn_blocking(move || {
+    app_for_pick
+      .dialog()
+      .file()
+      .add_filter("JSON", &["json"])
+      .blocking_pick_file()
+      .map(|p| p.to_string())
+  })
+    .await
+    .map_err(|_| "dialog join error".to_string())?;
+
+  let app_restore = app.clone();
+  let _ = app.run_on_main_thread(move || {
+    #[cfg(target_os = "macos")]
+    {
+      activate_app_now();
+      let _ = app_restore.set_activation_policy(ActivationPolicy::Accessory);
+    }
+    let _ = app_restore.show_popover();
+  });
+
+  Ok(picked)
+}
+
 /// ✅ Background-safe alarm playback (macOS)
 #[tauri::command]
 fn play_alarm(state: State<AlarmState>, path: String, volume: f32) -> Result<(), String> {
@@ -457,7 +502,9 @@ fn show_popover_cmd(app: tauri::AppHandle) -> Result<(), String> {
   let app_ui = app.clone();
 
   let _ = app.run_on_main_thread(move || {
-    // ✅ 只负责弹出 popover（不碰 activation policy，不会把 Dock 弹出来）
+    #[cfg(target_os = "macos")]
+    activate_app_now();
+
     let _ = app_ui.show_popover();
   });
 
@@ -677,6 +724,7 @@ pub fn run() {
 
     .invoke_handler(tauri::generate_handler![
       pick_audio,
+      pick_import_file,
       play_alarm,
       stop_alarm,
       hide_popover_cmd,
