@@ -8,6 +8,7 @@ import { MdDeleteSweep } from "react-icons/md";
 import TagManager from "./TagManager";
 
 const STORAGE_KEY = "menubar_todo_v1";
+const STORAGE_BACKUP_KEY = "menubar_todo_v1_backup";
 const SETTINGS_KEY = "menubar_todo_settings_v1";
 const TITLE_KEY = "menubar_title_v1";
 const TAGS_KEY = "menubar_tags_v1";
@@ -86,6 +87,17 @@ function applyCompletionToDailyStats(stats, todo, direction) {
   };
 }
 
+function adjustFocusMinutesInDailyStats(stats, deltaMinutes) {
+  const base = stats ?? createEmptyDailyStats();
+  return {
+    ...base,
+    focusMinutes: Math.max(
+      0,
+      Number(base.focusMinutes ?? 0) + Number(deltaMinutes ?? 0),
+    ),
+  };
+}
+
 function safeParse(json, fallback) {
   try {
     const v = JSON.parse(json);
@@ -93,6 +105,16 @@ function safeParse(json, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function readStoredData() {
+  const primaryRaw = localStorage.getItem(STORAGE_KEY);
+  const primary = primaryRaw ? safeParse(primaryRaw, null) : null;
+  if (primary) return primary;
+
+  const backupRaw = localStorage.getItem(STORAGE_BACKUP_KEY);
+  const backup = backupRaw ? safeParse(backupRaw, null) : null;
+  return backup;
 }
 
 const formatShortcutDisplay = ({ meta, shift, alt, ctrl }, code) => {
@@ -193,8 +215,7 @@ function TodoWrapper() {
   const [editing, setEditing] = useState(null);
 
   const [todos, setTodos] = useState(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const data = raw ? safeParse(raw, null) : null;
+    const data = readStoredData();
     if (data?.todos?.length) {
       const todayKey = getLocalDayKey();
       const savedDayKey = localStorage.getItem(LAST_ACTIVE_DAY_KEY);
@@ -235,8 +256,7 @@ function TodoWrapper() {
   });
 
   const [dailyStats, setDailyStats] = useState(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const data = raw ? safeParse(raw, null) : null;
+    const data = readStoredData();
     const todayKey = getLocalDayKey();
     const saved = data?.stats;
 
@@ -253,28 +273,24 @@ function TodoWrapper() {
 
   // Focus mode state
   const [activeId, setActiveId] = useState(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const data = raw ? safeParse(raw, null) : null;
+    const data = readStoredData();
     return data?.timer?.activeId ?? null;
   });
 
   const [status, setStatus] = useState(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const data = raw ? safeParse(raw, null) : null;
+    const data = readStoredData();
     return data?.timer?.status ?? "idle";
   });
 
   const [remainingSec, setRemainingSec] = useState(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const data = raw ? safeParse(raw, null) : null;
+    const data = readStoredData();
     return data?.timer?.remainingSec ?? 0;
   });
 
   const endAtRef = useRef(null);
 
   const [showCompleted, setShowCompleted] = useState(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const data = raw ? safeParse(raw, null) : null;
+    const data = readStoredData();
     return data?.ui?.showCompleted ?? false;
   });
   const [openTagPickerId, setOpenTagPickerId] = useState(null);
@@ -543,13 +559,11 @@ function TodoWrapper() {
   // "sound" = 播 mp3 / native alarm（原本行為）
   // "quiet" = 不播音效，時間到只顯示 overlay（你要的 📢）
   const [notificationMode, setNotificationMode] = useState(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const data = raw ? safeParse(raw, null) : null;
+    const data = readStoredData();
     return data?.ui?.notificationMode ?? "sound";
   });
   const [startMode, setStartMode] = useState(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const data = raw ? safeParse(raw, null) : null;
+    const data = readStoredData();
     return data?.ui?.startMode ?? "strict";
   });
 
@@ -590,20 +604,17 @@ function TodoWrapper() {
   const [soundDataUrl, setSoundDataUrl] = useState(null);
 
   const [soundPath, setSoundPath] = useState(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const data = raw ? safeParse(raw, null) : null;
+    const data = readStoredData();
     return data?.ui?.sound?.path ?? "";
   });
 
   const [soundName, setSoundName] = useState(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const data = raw ? safeParse(raw, null) : null;
+    const data = readStoredData();
     return data?.ui?.sound?.name ?? "";
   });
 
   const [soundVolume, setSoundVolume] = useState(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const data = raw ? safeParse(raw, null) : null;
+    const data = readStoredData();
     return data?.ui?.sound?.volume ?? 1;
   });
 
@@ -1103,8 +1114,7 @@ function TodoWrapper() {
     if (initialLoadedRef.current) return;
     initialLoadedRef.current = true;
 
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const data = raw ? safeParse(raw, null) : null;
+    const data = readStoredData();
 
     const timer = data?.timer;
     if (!timer) return;
@@ -1166,7 +1176,9 @@ function TodoWrapper() {
       },
     };
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    const serialized = JSON.stringify(payload);
+    localStorage.setItem(STORAGE_KEY, serialized);
+    localStorage.setItem(STORAGE_BACKUP_KEY, serialized);
   }, [
     todos,
     dailyStats,
@@ -1593,31 +1605,32 @@ function TodoWrapper() {
 
   const toggleComplete = (id) => {
     if (isLocked) return;
+    const targetTodo = todos.find((todo) => todo.id === id);
+    if (!targetTodo || targetTodo.type === "note") return;
+
     const todayKey = getLocalDayKey();
+    const nextCompleted = !targetTodo.isCompleted;
+    const shouldAdjustStats = nextCompleted
+      ? true
+      : getDayKeyFromIso(targetTodo.completedAt) === todayKey;
 
     setTodos((prev) =>
-      prev.map((todo) => {
-        if (todo.id !== id) return todo;
-        if (todo.type === "note") return todo;
-
-        const nextCompleted = !todo.isCompleted;
-        const shouldAdjustStats = nextCompleted
-          ? true
-          : getDayKeyFromIso(todo.completedAt) === todayKey;
-
-        if (shouldAdjustStats) {
-          setDailyStats((prevStats) =>
-            applyCompletionToDailyStats(prevStats, todo, nextCompleted ? 1 : -1),
-          );
-        }
-
-        return {
-          ...todo,
-          isCompleted: nextCompleted,
-          completedAt: nextCompleted ? new Date().toISOString() : null,
-        };
-      }),
+      prev.map((todo) =>
+        todo.id === id
+          ? {
+              ...todo,
+              isCompleted: nextCompleted,
+              completedAt: nextCompleted ? new Date().toISOString() : null,
+            }
+          : todo,
+      ),
     );
+
+    if (shouldAdjustStats) {
+      setDailyStats((prevStats) =>
+        applyCompletionToDailyStats(prevStats, targetTodo, nextCompleted ? 1 : -1),
+      );
+    }
   };
 
   const toggleIsEditing = (id) => {
@@ -1632,18 +1645,40 @@ function TodoWrapper() {
 
   const editTodo = (id, newContent, minutes) => {
     if (isLocked) return;
+    const targetTodo = todos.find((todo) => todo.id === id);
+    if (!targetTodo) return;
+
+    const nextMinutes =
+      targetTodo.type === "note" ? null : (minutes ?? targetTodo.minutes);
+
     setTodos((prev) =>
       prev.map((t) =>
         t.id === id
           ? {
               ...t,
               content: newContent,
-              minutes: t.type === "note" ? null : (minutes ?? t.minutes),
+              minutes: t.type === "note" ? null : nextMinutes,
               isEditing: false,
             }
           : t,
       ),
     );
+
+    if (
+      targetTodo.type === "task" &&
+      targetTodo.isCompleted &&
+      getDayKeyFromIso(targetTodo.completedAt) === getLocalDayKey()
+    ) {
+      const prevMinutes = Number(targetTodo.minutes ?? 0);
+      const updatedMinutes = Number(nextMinutes ?? prevMinutes);
+      const deltaMinutes = updatedMinutes - prevMinutes;
+
+      if (deltaMinutes !== 0) {
+        setDailyStats((prevStats) =>
+          adjustFocusMinutesInDailyStats(prevStats, deltaMinutes),
+        );
+      }
+    }
   };
 
   const changeTodoTag = (id, nextTag) => {
