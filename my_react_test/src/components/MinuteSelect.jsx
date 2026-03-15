@@ -155,6 +155,20 @@ export default function MinuteSelect({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  useEffect(() => {
+    const onCloseTransient = () => {
+      if (!open) return;
+      setOpenSafe(false);
+    };
+
+    window.addEventListener("ui://close-transient-panels", onCloseTransient);
+    return () =>
+      window.removeEventListener(
+        "ui://close-transient-panels",
+        onCloseTransient,
+      );
+  }, [open]);
+
   const setByStep = (delta) => {
     const next = clamp(Number(value) + delta, MIN_TOTAL, MAX_TOTAL);
     onChange(next);

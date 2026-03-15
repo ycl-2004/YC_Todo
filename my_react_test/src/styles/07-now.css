@@ -505,6 +505,14 @@
     transform 120ms var(--ease);
 }
 
+.tag-mgr-row.is-draggable {
+  cursor: grab;
+}
+
+.tag-mgr-row.is-draggable:active {
+  cursor: grabbing;
+}
+
 .tag-mgr-row:hover {
   background: color-mix(in srgb, var(--surface-2) 88%, transparent);
   border-color: color-mix(in srgb, var(--accent) 24%, var(--card-border));

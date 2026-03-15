@@ -9,7 +9,7 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{ActivationPolicy, Emitter, Manager, State};
 
 use tauri_plugin_dialog::DialogExt;
@@ -199,6 +199,16 @@ fn rebuild_tray_menu<R: tauri::Runtime>(
 ) -> Result<Menu<R>, tauri::Error> {
   let version_str = format!("Version {}", env!("CARGO_PKG_VERSION"));
   let version_item = MenuItem::with_id(app, "version", version_str, false, None::<&str>)?;
+  let notif_mode_sound =
+    MenuItem::with_id(app, "notif_mode_sound", "Sound", true, None::<&str>)?;
+  let notif_mode_quiet =
+    MenuItem::with_id(app, "notif_mode_quiet", "Quiet", true, None::<&str>)?;
+  let notif_mode_menu = Submenu::with_items(
+    app,
+    "Notification Mode",
+    true,
+    &[&notif_mode_sound, &notif_mode_quiet],
+  )?;
 
   let pop = display_from_spec(&cfg.popover);
   let snd = display_from_spec(&cfg.sound);
@@ -229,38 +239,58 @@ fn rebuild_tray_menu<R: tauri::Runtime>(
     None::<&str>,
   )?;
 
+  let shortcuts_menu = Submenu::with_items(
+    app,
+    "Shortcuts",
+    true,
+    &[&set_popover, &set_sound, &set_notif_mode],
+  )?;
 
   // Theme items
-  let theme_system = MenuItem::with_id(app, "theme_system", "Theme: System", true, None::<&str>)?;
-  let theme_light = MenuItem::with_id(app, "theme_light", "Theme: Light", true, None::<&str>)?;
-  let theme_dark = MenuItem::with_id(app, "theme_dark", "Theme: Dark", true, None::<&str>)?;
+  let theme_system = MenuItem::with_id(app, "theme_system", "System", true, None::<&str>)?;
+  let theme_light = MenuItem::with_id(app, "theme_light", "Light", true, None::<&str>)?;
+  let theme_dark = MenuItem::with_id(app, "theme_dark", "Dark", true, None::<&str>)?;
+  let theme_menu = Submenu::with_items(
+    app,
+    "Theme",
+    true,
+    &[&theme_system, &theme_light, &theme_dark],
+  )?;
 
   // Accent items
-  let accent_pink = MenuItem::with_id(app, "accent_pink", "Accent: Pink", true, None::<&str>)?;
-  let accent_purple = MenuItem::with_id(app, "accent_purple", "Accent: Purple", true, None::<&str>)?;
-  let accent_blue = MenuItem::with_id(app, "accent_blue", "Accent: Blue", true, None::<&str>)?;
-  let accent_gray = MenuItem::with_id(app, "accent_gray", "Accent: Warm Beige", true, None::<&str>)?;
+  let accent_pink = MenuItem::with_id(app, "accent_pink", "Pink", true, None::<&str>)?;
+  let accent_purple = MenuItem::with_id(app, "accent_purple", "Purple", true, None::<&str>)?;
+  let accent_blue = MenuItem::with_id(app, "accent_blue", "Blue", true, None::<&str>)?;
+  let accent_gray = MenuItem::with_id(app, "accent_gray", "Warm Beige", true, None::<&str>)?;
+  let accent_menu = Submenu::with_items(
+    app,
+    "Accent",
+    true,
+    &[&accent_pink, &accent_purple, &accent_blue, &accent_gray],
+  )?;
 
+  let about_menu = Submenu::with_items(app, "About", true, &[&version_item])?;
+  let import_export_menu = Submenu::with_items(
+    app,
+    "Import",
+    true,
+    &[
+      &MenuItem::with_id(app, "export_local_data", "Export Data…", true, None::<&str>)?,
+      &MenuItem::with_id(app, "import_local_data", "Import Data…", true, None::<&str>)?,
+    ],
+  )?;
 
   let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
   Menu::with_items(
     app,
     &[
-      &version_item,
-      &PredefinedMenuItem::separator(app)?,
-      &set_popover,
-      &set_sound,
-      &set_notif_mode,
-      &PredefinedMenuItem::separator(app)?,
-      &theme_system,
-      &theme_light,
-      &theme_dark,
-      &PredefinedMenuItem::separator(app)?,
-      &accent_pink,
-      &accent_purple,
-      &accent_blue,
-      &accent_gray,
+      &about_menu,
+      &notif_mode_menu,
+      &theme_menu,
+      &accent_menu,
+      &shortcuts_menu,
+      &import_export_menu,
       &PredefinedMenuItem::separator(app)?,
       &quit_item,
     ],
@@ -740,6 +770,31 @@ pub fn run() {
       let app_handle_for_menu = app.handle().clone();
       tray.on_menu_event(move |_tray, event| match event.id().as_ref() {
         "quit" => app_handle_for_menu.exit(0),
+        "notif_mode_sound" | "notif_mode_quiet" => {
+          let next_mode = if event.id().as_ref() == "notif_mode_sound" {
+            "sound"
+          } else {
+            "quiet"
+          };
+
+          let outer = app_handle_for_menu.clone();
+          let inner = outer.clone();
+
+          let _ = outer.run_on_main_thread(move || {
+            if !inner.is_popover_shown() {
+              inner.show_popover();
+            }
+          });
+
+          let emit_handle = app_handle_for_menu.clone();
+          tauri::async_runtime::spawn(async move {
+            std::thread::sleep(std::time::Duration::from_millis(80));
+            let _ = emit_handle.emit(
+              "ui://set-notification-mode",
+              serde_json::json!({ "mode": next_mode }),
+            );
+          });
+        }
 
         "set_shortcut_popover" => {
           let outer = app_handle_for_menu.clone();
@@ -811,6 +866,12 @@ pub fn run() {
         "accent_purple" => { let _ = app_handle_for_menu.emit("settings://accent", "#B19CD9"); }
         "accent_blue" => { let _ = app_handle_for_menu.emit("settings://accent", "#6C8FF5"); }
         "accent_gray" => { let _ = app_handle_for_menu.emit("settings://accent", "#D1C0A8"); } //4b4b4b D9CFBE D6C8B4
+        "export_local_data" => {
+          let _ = app_handle_for_menu.emit("ui://export-local-data", ());
+        }
+        "import_local_data" => {
+          let _ = app_handle_for_menu.emit("ui://import-local-data", ());
+        }
 
         _ => {}
       });

@@ -2,7 +2,8 @@ import CreateForm from "./CreateForm";
 import Todo from "./Todo";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { open, save } from "@tauri-apps/plugin-dialog";
+import { readFile, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { listen } from "@tauri-apps/api/event";
 import { MdDeleteSweep } from "react-icons/md";
 import TagManager from "./TagManager";
@@ -15,6 +16,19 @@ const TAGS_KEY = "menubar_tags_v1";
 const TAG_COLORS_KEY = "menubar_tag_colors_v1";
 const ENTRY_FILTER_KEY = "menubar_entry_filter_v1";
 const LAST_ACTIVE_DAY_KEY = "menubar_last_active_day_v1";
+const EXPORT_SCHEMA_VERSION = 1;
+
+const EXPORTABLE_STORAGE_KEYS = [
+  STORAGE_KEY,
+  STORAGE_BACKUP_KEY,
+  SETTINGS_KEY,
+  TITLE_KEY,
+  `${TITLE_KEY}_subtitle`,
+  TAGS_KEY,
+  TAG_COLORS_KEY,
+  ENTRY_FILTER_KEY,
+  LAST_ACTIVE_DAY_KEY,
+];
 
 const DEFAULT_TAG_COLORS = {
   Study: "#9FB7EE",
@@ -115,6 +129,19 @@ function readStoredData() {
   const backupRaw = localStorage.getItem(STORAGE_BACKUP_KEY);
   const backup = backupRaw ? safeParse(backupRaw, null) : null;
   return backup;
+}
+
+function buildExportPayload() {
+  const data = Object.fromEntries(
+    EXPORTABLE_STORAGE_KEYS.map((key) => [key, localStorage.getItem(key)]),
+  );
+
+  return {
+    app: "YC Todo",
+    schemaVersion: EXPORT_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    data,
+  };
 }
 
 const formatShortcutDisplay = ({ meta, shift, alt, ctrl }, code) => {
@@ -1377,6 +1404,25 @@ function TodoWrapper() {
     };
   }, []);
 
+  useEffect(() => {
+    let unExport, unImport;
+
+    (async () => {
+      unExport = await listen("ui://export-local-data", () => {
+        exportLocalData();
+      });
+
+      unImport = await listen("ui://import-local-data", () => {
+        importLocalData();
+      });
+    })();
+
+    return () => {
+      unExport?.();
+      unImport?.();
+    };
+  }, []);
+
   // -----------------------------
   // Listen global shortcut: toggle Notify panel (UPDATED: same event name)
   // -----------------------------
@@ -1395,6 +1441,23 @@ function TodoWrapper() {
 
         setShowNotifyPanel(true);
         setNotificationMode((m) => (m === "sound" ? "quiet" : "sound"));
+      });
+    })();
+
+    return () => {
+      un?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    let un;
+
+    (async () => {
+      un = await listen("ui://set-notification-mode", (e) => {
+        const nextMode = e?.payload?.mode;
+        if (nextMode !== "sound" && nextMode !== "quiet") return;
+        setShowNotifyPanel(true);
+        setNotificationMode(nextMode);
       });
     })();
 
@@ -1828,6 +1891,86 @@ function TodoWrapper() {
     setShowCompleted(false);
   };
 
+  const exportLocalData = async () => {
+    try {
+      const filePath = await save({
+        title: "Export YC Todo Data",
+        defaultPath: `yc-todo-backup-${getLocalDayKey()}.json`,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (!filePath) return;
+
+      const payload = buildExportPayload();
+      await writeTextFile(filePath, JSON.stringify(payload, null, 2));
+      alert("Data exported successfully.");
+    } catch (e) {
+      console.error("[export] failed:", e);
+      alert("Export failed: " + String(e));
+    }
+  };
+
+  const importLocalData = async () => {
+    try {
+      const selected = await open({
+        title: "Import YC Todo Data",
+        multiple: false,
+        directory: false,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+
+      if (!selected || Array.isArray(selected)) return;
+
+      const raw = await readTextFile(selected);
+      const parsed = safeParse(raw, null);
+      const importedData = parsed?.data;
+
+      if (!importedData || typeof importedData !== "object") {
+        throw new Error("Invalid backup file.");
+      }
+
+      EXPORTABLE_STORAGE_KEYS.forEach((key) => {
+        const value = importedData[key];
+        if (typeof value === "string") localStorage.setItem(key, value);
+        else localStorage.removeItem(key);
+      });
+
+      alert("Data imported successfully. YC Todo will reload now.");
+      window.location.reload();
+    } catch (e) {
+      console.error("[import] failed:", e);
+      alert("Import failed: " + String(e));
+    }
+  };
+
+  const closeTransientPanels = () => {
+    let closed = false;
+
+    if (showNotifyPanel) {
+      setShowNotifyPanel(false);
+      stopSound();
+      stopAlarmNative();
+      closed = true;
+    }
+
+    if (openTagPickerId !== null) {
+      setOpenTagPickerId(null);
+      closed = true;
+    }
+
+    const hasMinutePopover = Boolean(document.getElementById("minute-popover"));
+    const hasTagManagerPopover = Boolean(document.querySelector(".tag-mgr-pop"));
+    const hasTagManagerPalette = Boolean(
+      document.querySelector(".tag-mgr-palette"),
+    );
+
+    if (hasMinutePopover || hasTagManagerPopover || hasTagManagerPalette) {
+      window.dispatchEvent(new Event("ui://close-transient-panels"));
+      closed = true;
+    }
+
+    return closed;
+  };
+
   const headerRight = useMemo(() => {
     if (isLocked && activeId) return formatTime(remainingSec);
     return `${remainingCount}`;
@@ -1852,29 +1995,21 @@ function TodoWrapper() {
       if (isTyping) return;
       if (todos.some((x) => x.isEditing)) return;
 
-      //if (showNotifyPanel) return;
-
-      if (document.getElementById("minute-popover")) return;
-      if (document.getElementById("tagwheel-popover")) return;
-
       e.preventDefault();
       e.stopPropagation();
 
-      // ✅ 1) 如果 Notifications panel 开着：Enter 关掉它
-      if (showNotifyPanel) {
-        setShowNotifyPanel(false);
-        stopSound();
-        stopAlarmNative();
+      // 1) Close any open transient picker/panel first.
+      if (closeTransientPanels()) {
         return;
       }
 
-      // ✅ 2) 否则：Enter 隐藏整个 popover
+      // 2) Only hide app if nothing else is open.
       invoke("hide_popover_cmd");
     };
 
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [todos, showNotifyPanel, quietOverlayOpen]);
+  }, [todos, showNotifyPanel, quietOverlayOpen, openTagPickerId]);
 
   return (
     <>

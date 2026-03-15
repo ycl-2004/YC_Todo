@@ -38,6 +38,12 @@ function TagManager({
   const wrapRef = useRef(null);
   const popRef = useRef(null);
   const paletteRef = useRef(null);
+  const rowDragRef = useRef(null);
+  const rowHoverRef = useRef(null);
+  const rowDraggingRef = useRef(false);
+  const rowPendingRef = useRef(null);
+
+  const ROW_DRAG_THRESHOLD = 6;
 
   const computeManagerPos = () => {
     const btn = wrapRef.current?.querySelector(".tag-mgr-btn");
@@ -162,6 +168,74 @@ function TagManager({
     setPaletteOpenTag(tag);
   };
 
+  const reorderManagerTags = (fromTag, toTag) => {
+    if (!fromTag || !toTag || fromTag === toTag) return;
+
+    setTags((prev) => {
+      const arr = [...prev];
+      const fromIndex = arr.indexOf(fromTag);
+      const toIndex = arr.indexOf(toTag);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+
+      const [moved] = arr.splice(fromIndex, 1);
+      arr.splice(toIndex, 0, moved);
+      return arr;
+    });
+  };
+
+  const rowPointerMoveHandler = (e) => {
+    const pending = rowPendingRef.current;
+    if (!pending) return;
+
+    if (!rowDraggingRef.current) {
+      const dx = e.clientX - pending.x;
+      const dy = e.clientY - pending.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < ROW_DRAG_THRESHOLD) return;
+
+      rowDraggingRef.current = true;
+      rowDragRef.current = pending.tag;
+      rowHoverRef.current = null;
+      document.body.classList.add("is-tag-mgr-reordering");
+      e.preventDefault();
+    }
+
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const rowEl = el?.closest?.("[data-tag-row]");
+    const toTag = rowEl?.getAttribute?.("data-tag-row");
+    if (!toTag) return;
+
+    const fromTag = rowDragRef.current;
+    if (!fromTag || fromTag === toTag) return;
+    if (rowHoverRef.current === toTag) return;
+
+    rowHoverRef.current = toTag;
+    reorderManagerTags(fromTag, toTag);
+  };
+
+  const rowPointerUpHandler = () => {
+    rowPendingRef.current = null;
+    rowDraggingRef.current = false;
+    rowDragRef.current = null;
+    rowHoverRef.current = null;
+    document.body.classList.remove("is-tag-mgr-reordering");
+
+    window.removeEventListener("pointermove", rowPointerMoveHandler);
+    window.removeEventListener("pointerup", rowPointerUpHandler);
+  };
+
+  const startRowPointerDrag = (tag, startX, startY) => {
+    if (disabled) return;
+    if (!tag || editing || paletteOpenTag) return;
+
+    rowPendingRef.current = { tag, x: startX, y: startY };
+
+    window.addEventListener("pointermove", rowPointerMoveHandler, {
+      passive: false,
+    });
+    window.addEventListener("pointerup", rowPointerUpHandler);
+  };
+
   useEffect(() => {
     if (!open) return;
     const onRecalc = () => computeManagerPos();
@@ -190,6 +264,29 @@ function TagManager({
       document.removeEventListener("scroll", onRecalc, true);
     };
   }, [paletteOpenTag]);
+
+  useEffect(() => {
+    const onCloseTransient = () => {
+      setOpen(false);
+      setEditing(null);
+      setPaletteOpenTag(null);
+    };
+
+    window.addEventListener("ui://close-transient-panels", onCloseTransient);
+    return () =>
+      window.removeEventListener(
+        "ui://close-transient-panels",
+        onCloseTransient,
+      );
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      document.body.classList.remove("is-tag-mgr-reordering");
+      window.removeEventListener("pointermove", rowPointerMoveHandler);
+      window.removeEventListener("pointerup", rowPointerUpHandler);
+    };
+  }, []);
 
   return (
     <div className={`tag-mgr ${disabled ? "is-disabled" : ""}`} ref={wrapRef}>
@@ -267,7 +364,22 @@ function TagManager({
               const isEditing = editing === t;
 
               return (
-                <div className="tag-mgr-row" key={t}>
+                <div
+                  className={`tag-mgr-row ${!isEditing ? "is-draggable" : ""}`}
+                  key={t}
+                  data-tag-row={t}
+                  onPointerDown={(e) => {
+                    if (isEditing) return;
+                    if (e.button !== 0) return;
+
+                    const interactive = e.target?.closest?.(
+                      "button, input, textarea, select",
+                    );
+                    if (interactive) return;
+
+                    startRowPointerDrag(t, e.clientX, e.clientY);
+                  }}
+                >
                   {isEditing ? (
                     <>
                       <input
