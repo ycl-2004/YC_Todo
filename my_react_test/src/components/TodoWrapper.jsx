@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { listen } from "@tauri-apps/api/event";
+import { MdDeleteSweep } from "react-icons/md";
 import TagManager from "./TagManager";
 
 const STORAGE_KEY = "menubar_todo_v1";
@@ -12,6 +13,7 @@ const TITLE_KEY = "menubar_title_v1";
 const TAGS_KEY = "menubar_tags_v1";
 const TAG_COLORS_KEY = "menubar_tag_colors_v1";
 const ENTRY_FILTER_KEY = "menubar_entry_filter_v1";
+const LAST_ACTIVE_DAY_KEY = "menubar_last_active_day_v1";
 
 const DEFAULT_TAG_COLORS = {
   Study: "#9FB7EE",
@@ -32,10 +34,56 @@ function nowMs() {
   return Date.now();
 }
 
-function startOfTodayMs() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+function getLocalDayKey(date = new Date()) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function resetCompletedForNewDay(todos) {
+  if (!Array.isArray(todos)) return [];
+
+  return todos.map((todo) => {
+    if (!todo?.isCompleted && !todo?.completedAt) return todo;
+    return {
+      ...todo,
+      isCompleted: false,
+      completedAt: null,
+    };
+  });
+}
+
+function createEmptyDailyStats(dayKey = getLocalDayKey()) {
+  return {
+    dayKey,
+    completedCount: 0,
+    focusMinutes: 0,
+  };
+}
+
+function getDayKeyFromIso(isoString) {
+  if (!isoString) return null;
+  const date = new Date(isoString);
+  if (!Number.isFinite(date.getTime())) return null;
+  return getLocalDayKey(date);
+}
+
+function applyCompletionToDailyStats(stats, todo, direction) {
+  const base = stats ?? createEmptyDailyStats();
+  if (!todo || todo.type === "note") return base;
+  if (direction !== 1 && direction !== -1) return base;
+
+  const minutes = Math.max(0, Number(todo.minutes ?? 0));
+
+  return {
+    dayKey: base.dayKey ?? getLocalDayKey(),
+    completedCount: Math.max(0, Number(base.completedCount ?? 0) + direction),
+    focusMinutes: Math.max(
+      0,
+      Number(base.focusMinutes ?? 0) + minutes * direction,
+    ),
+  };
 }
 
 function safeParse(json, fallback) {
@@ -147,7 +195,13 @@ function TodoWrapper() {
   const [todos, setTodos] = useState(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     const data = raw ? safeParse(raw, null) : null;
-    if (data?.todos?.length) return data.todos;
+    if (data?.todos?.length) {
+      const todayKey = getLocalDayKey();
+      const savedDayKey = localStorage.getItem(LAST_ACTIVE_DAY_KEY);
+      return savedDayKey === todayKey
+        ? data.todos
+        : resetCompletedForNewDay(data.todos);
+    }
 
     return [
       {
@@ -178,6 +232,23 @@ function TodoWrapper() {
         type: "task",
       },
     ];
+  });
+
+  const [dailyStats, setDailyStats] = useState(() => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const data = raw ? safeParse(raw, null) : null;
+    const todayKey = getLocalDayKey();
+    const saved = data?.stats;
+
+    if (saved?.dayKey === todayKey) {
+      return {
+        dayKey: todayKey,
+        completedCount: Number(saved.completedCount ?? 0),
+        focusMinutes: Number(saved.focusMinutes ?? 0),
+      };
+    }
+
+    return createEmptyDailyStats(todayKey);
   });
 
   // Focus mode state
@@ -436,40 +507,11 @@ function TodoWrapper() {
   );
 
   const todayStats = useMemo(() => {
-    const startMs = startOfTodayMs();
-    const completedTodayTasks = normalizedTodos.filter((t) => {
-      if (t.type !== "task") return false;
-      if (!t.isCompleted || !t.completedAt) return false;
-      const ts = new Date(t.completedAt).getTime();
-      return Number.isFinite(ts) && ts >= startMs;
-    });
-
-    const focusMinutes = completedTodayTasks.reduce(
-      (sum, t) => sum + Number(t.minutes ?? 0),
-      0,
-    );
-
-    const tagMinutesMap = completedTodayTasks.reduce((acc, t) => {
-      const k = t.tag ?? "Other";
-      acc[k] = (acc[k] ?? 0) + Number(t.minutes ?? 0);
-      return acc;
-    }, {});
-
-    const tagRows = Object.entries(tagMinutesMap)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3);
-
     return {
-      completedCount: completedTodayTasks.length,
-      focusMinutes,
-      tagRows,
+      completedCount: Number(dailyStats.completedCount ?? 0),
+      focusMinutes: Number(dailyStats.focusMinutes ?? 0),
     };
-  }, [normalizedTodos, dayTick]);
-
-  const topTagSummary = useMemo(() => {
-    if (todayStats.tagRows.length === 0) return "No focus yet";
-    return todayStats.tagRows.map(([tag, mins]) => `${tag} ${mins}m`).join(" · ");
-  }, [todayStats]);
+  }, [dailyStats]);
 
   const activeTodo = useMemo(
     () => todos.find((t) => t.id === activeId) || null,
@@ -1043,6 +1085,17 @@ function TodoWrapper() {
     localStorage.setItem(`${TITLE_KEY}_subtitle`, subtitle);
   }, [title, subtitle]);
 
+  useEffect(() => {
+    const todayKey = getLocalDayKey();
+    const savedDayKey = localStorage.getItem(LAST_ACTIVE_DAY_KEY);
+    if (savedDayKey === todayKey) return;
+
+    setTodos((prev) => resetCompletedForNewDay(prev));
+    setDailyStats(createEmptyDailyStats(todayKey));
+    setShowCompleted(false);
+    localStorage.setItem(LAST_ACTIVE_DAY_KEY, todayKey);
+  }, [dayTick]);
+
   // -----------------------------
   // Restore timer endAt from storage on first mount
   // -----------------------------
@@ -1094,6 +1147,7 @@ function TodoWrapper() {
   useEffect(() => {
     const payload = {
       todos,
+      stats: dailyStats,
       timer: {
         activeId,
         status,
@@ -1115,6 +1169,7 @@ function TodoWrapper() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   }, [
     todos,
+    dailyStats,
     activeId,
     status,
     remainingSec,
@@ -1538,11 +1593,24 @@ function TodoWrapper() {
 
   const toggleComplete = (id) => {
     if (isLocked) return;
+    const todayKey = getLocalDayKey();
+
     setTodos((prev) =>
       prev.map((todo) => {
         if (todo.id !== id) return todo;
         if (todo.type === "note") return todo;
+
         const nextCompleted = !todo.isCompleted;
+        const shouldAdjustStats = nextCompleted
+          ? true
+          : getDayKeyFromIso(todo.completedAt) === todayKey;
+
+        if (shouldAdjustStats) {
+          setDailyStats((prevStats) =>
+            applyCompletionToDailyStats(prevStats, todo, nextCompleted ? 1 : -1),
+          );
+        }
+
         return {
           ...todo,
           isCompleted: nextCompleted,
@@ -1673,6 +1741,11 @@ function TodoWrapper() {
   const finishActive = () => {
     if (!activeId) return;
 
+    const finishedTodo = todos.find((t) => t.id === activeId) || null;
+    if (finishedTodo && !finishedTodo.isCompleted && finishedTodo.type !== "note") {
+      setDailyStats((prev) => applyCompletionToDailyStats(prev, finishedTodo, 1));
+    }
+
     setTodos((prev) =>
       prev.map((t) =>
         t.id === activeId
@@ -1712,6 +1785,12 @@ function TodoWrapper() {
 
     // allow future notifications for next run
     notifiedRef.current = false;
+  };
+
+  const clearCompletedTasks = () => {
+    if (isLocked) return;
+    setTodos((prev) => prev.filter((todo) => !todo.isCompleted));
+    setShowCompleted(false);
   };
 
   const headerRight = useMemo(() => {
@@ -2176,7 +2255,7 @@ function TodoWrapper() {
               <div className="today-stats-inline">
                 <span className="today-stats-text">
                   Today: Done {todayStats.completedCount} · Focus{" "}
-                  {todayStats.focusMinutes}m · Tag {topTagSummary}
+                  {todayStats.focusMinutes}m
                 </span>
               </div>
             )}
@@ -2271,19 +2350,34 @@ function TodoWrapper() {
           </div>
 
           <div className="completed-panel">
-            <button
-              className="collapse-btn"
-              onClick={() => setShowCompleted((v) => !v)}
-              disabled={visibleCompleted.length === 0}
-              aria-label="Toggle completed"
-            >
-              <span>Completed</span>
-              <span className="muted">
-                {visibleCompleted.length === 0
-                  ? "0"
-                  : `${visibleCompleted.length} ${showCompleted ? "▾" : "▸"}`}
-              </span>
-            </button>
+            <div className="completed-header">
+              <button
+                className="collapse-btn"
+                onClick={() => setShowCompleted((v) => !v)}
+                disabled={visibleCompleted.length === 0}
+                aria-label="Toggle completed"
+              >
+                <span>Completed</span>
+                <span className="collapse-btn-right">
+                  <span className="muted">
+                    {visibleCompleted.length === 0
+                      ? "0"
+                      : `${visibleCompleted.length} ${showCompleted ? "▾" : "▸"}`}
+                  </span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="completed-clear-btn"
+                onClick={clearCompletedTasks}
+                disabled={allCompleted.length === 0}
+                aria-label="Clear completed tasks"
+                title="Clear all completed tasks"
+              >
+                <MdDeleteSweep size={12} />
+              </button>
+            </div>
 
             {showCompleted && visibleCompleted.length > 0 && (
               <div className="completed-list">

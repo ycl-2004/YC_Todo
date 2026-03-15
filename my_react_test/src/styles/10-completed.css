@@ -1,9 +1,14 @@
 /* ============================================================
    10) Completed Panel
    ============================================================ */
+.completed-header {
+  position: relative;
+  width: 100%;
+}
+
 .collapse-btn {
   width: 100%;
-  padding: 10px 12px;
+  padding: 10px 44px 10px 12px;
 
   display: flex;
   align-items: center;
@@ -39,6 +44,46 @@
   box-shadow: none;
 }
 
+.collapse-btn-right {
+  display: inline-flex;
+  align-items: center;
+}
+
+.completed-clear-btn {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--card-border) 72%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+  color: color-mix(in srgb, var(--ink) 74%, var(--accent) 26%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    transform 120ms var(--ease),
+    filter 120ms var(--ease),
+    opacity 120ms var(--ease);
+}
+
+.completed-clear-btn:hover {
+  filter: brightness(1.03);
+}
+
+.completed-clear-btn:active {
+  transform: translateY(calc(-50% + 1px));
+}
+
+.completed-clear-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .completed-list {
   margin-top: 10px;
 
@@ -67,4 +112,13 @@
   background: color-mix(in srgb, var(--surface-1) 84%, white 16%);
   border-color: color-mix(in srgb, var(--card-border) 70%, transparent);
   box-shadow: none;
+}
+
+:root[data-theme="dark"] .completed-clear-btn {
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+}
+
+:root[data-theme="light"] .completed-clear-btn {
+  background: color-mix(in srgb, var(--surface-2) 72%, white 28%);
+  border-color: color-mix(in srgb, var(--card-border) 70%, transparent);
 }
