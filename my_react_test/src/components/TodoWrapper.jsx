@@ -1008,7 +1008,7 @@ function TodoWrapper() {
       return true;
     } catch (e) {
       console.error("[alarm] play failed:", e);
-      alert("mp3 play failed: " + String(e));
+      showFlashNotice(`MP3 playback failed: ${String(e)}`, "error");
       return false;
     }
   };
@@ -1128,7 +1128,7 @@ function TodoWrapper() {
       setSoundDataUrl(url);
     } catch (e) {
       console.error("[Upload MP3] error:", e);
-      alert("Upload dialog failed: " + String(e));
+      showFlashNotice(`Upload dialog failed: ${String(e)}`, "error");
     }
   };
 
