@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core"; // ✅ NEW
+import { listen } from "@tauri-apps/api/event";
 import MinuteSelect from "./MinuteSelect";
 import TagSelect from "./TagSelect";
 
-function CreateForm({ addTodo, isLocked, tags, tagColors = {} }) {
+function CreateForm({
+  addTodo,
+  isLocked,
+  tags,
+  tagColors = {},
+  activeTag = "All",
+}) {
   const formRef = useRef(null);
+  const inputRef = useRef(null);
 
   const [task, setTask] = useState("");
   const [minutes, setMinutes] = useState(25);
@@ -31,10 +39,61 @@ function CreateForm({ addTodo, isLocked, tags, tagColors = {} }) {
     if (!tags.includes(tag)) setTag(tags[0]);
   }, [tags, tag]);
 
+  useEffect(() => {
+    if (!tags?.length) return;
+    if (activeTag === "All") return;
+    if (!tags.includes(activeTag)) return;
+    setTag(activeTag);
+  }, [activeTag, tags]);
+
+  useEffect(() => {
+    let disposed = false;
+
+    const focusTaskInput = () => {
+      if (isLocked) return;
+
+      const run = () => {
+        const input = inputRef.current;
+        if (!input) return;
+        input.focus();
+        input.select();
+      };
+
+      requestAnimationFrame(() => {
+        run();
+        window.setTimeout(run, 30);
+      });
+    };
+
+    (async () => {
+      const un = await listen("ui://focus-create-task", () => {
+        focusTaskInput();
+      });
+
+      if (disposed) {
+        un();
+        return;
+      }
+
+      window.__unlistenFocusCreateTask = un;
+    })();
+
+    return () => {
+      disposed = true;
+      if (window.__unlistenFocusCreateTask) {
+        try {
+          window.__unlistenFocusCreateTask();
+        } catch {}
+        window.__unlistenFocusCreateTask = null;
+      }
+    };
+  }, [isLocked]);
+
   return (
     <form ref={formRef} className="create-form" onSubmit={handleSubmit}>
       <div className="create-form-top">
         <input
+          ref={inputRef}
           type="text"
           placeholder="Add a task…"
           value={task}
@@ -45,6 +104,7 @@ function CreateForm({ addTodo, isLocked, tags, tagColors = {} }) {
             if (e.key !== "Enter") return;
             if (e.isComposing) return;
             if (isLocked) return;
+            if (e.metaKey || e.shiftKey || e.altKey || e.ctrlKey) return;
 
             if (task.trim().length === 0) {
               e.preventDefault();

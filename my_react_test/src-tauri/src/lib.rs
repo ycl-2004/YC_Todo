@@ -86,10 +86,15 @@ struct ShortcutSpec {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 struct ShortcutConfig {
   popover: ShortcutSpec,
   sound: ShortcutSpec,
-  notif_mode: ShortcutSpec, // ✅ NEW
+  notif_mode: ShortcutSpec,
+  prev_tag: ShortcutSpec,
+  next_tag: ShortcutSpec,
+  focus_create: ShortcutSpec,
+  start_first: ShortcutSpec,
 }
 
 impl Default for ShortcutConfig {
@@ -107,14 +112,42 @@ impl Default for ShortcutConfig {
         shift: true,
         alt: false,
         ctrl: false,
-        code: "KeyK".to_string(),
+        code: "KeyI".to_string(),
       },
       notif_mode: ShortcutSpec { // ✅ NEW
         meta: true,
         shift: true,
         alt: false,
         ctrl: false,
+        code: "KeyO".to_string(),
+      },
+      prev_tag: ShortcutSpec {
+        meta: true,
+        shift: true,
+        alt: false,
+        ctrl: false,
+        code: "KeyK".to_string(),
+      },
+      next_tag: ShortcutSpec {
+        meta: true,
+        shift: true,
+        alt: false,
+        ctrl: false,
         code: "KeyL".to_string(),
+      },
+      focus_create: ShortcutSpec {
+        meta: true,
+        shift: true,
+        alt: false,
+        ctrl: false,
+        code: "KeyU".to_string(),
+      },
+      start_first: ShortcutSpec {
+        meta: true,
+        shift: true,
+        alt: false,
+        ctrl: false,
+        code: "Enter".to_string(),
       },
     }
   }
@@ -163,7 +196,7 @@ fn to_modifiers(spec: &ShortcutSpec) -> Option<Modifiers> {
 }
 
 fn code_from_js(code: &str) -> Option<Code> {
-  // 支持：KeyA..KeyZ / Digit0..Digit9（够你现在用）
+  // 支持：KeyA..KeyZ / Digit0..Digit9 / Enter
   if let Some(ch) = code.strip_prefix("Key") {
     if ch.len() == 1 {
       let c = ch.chars().next().unwrap();
@@ -217,12 +250,17 @@ fn code_from_js(code: &str) -> Option<Code> {
     }
   }
 
+  if code == "Enter" {
+    return Some(Code::Enter);
+  }
+
   None
 }
 
 fn spec_to_shortcut(spec: &ShortcutSpec) -> Result<Shortcut, String> {
   let mods = to_modifiers(spec).ok_or("shortcut must include at least one modifier")?;
-  let code = code_from_js(&spec.code).ok_or("unsupported key code (only KeyA..KeyZ / Digit0..9 for now)")?;
+  let code =
+    code_from_js(&spec.code).ok_or("unsupported key code (supported: KeyA..KeyZ, Digit0..9, Enter)")?;
   Ok(Shortcut::new(Some(mods), code))
 }
 
@@ -242,6 +280,66 @@ fn display_from_spec(spec: &ShortcutSpec) -> String {
   };
 
   s + &key
+}
+
+fn shortcut_spec_for_target<'a>(cfg: &'a ShortcutConfig, target: &str) -> Option<&'a ShortcutSpec> {
+  match target {
+    "popover" => Some(&cfg.popover),
+    "sound" => Some(&cfg.sound),
+    "notif_mode" => Some(&cfg.notif_mode),
+    "prev_tag" => Some(&cfg.prev_tag),
+    "next_tag" => Some(&cfg.next_tag),
+    "focus_create" => Some(&cfg.focus_create),
+    "start_first" => Some(&cfg.start_first),
+    _ => None,
+  }
+}
+
+fn shortcut_spec_for_target_mut<'a>(
+  cfg: &'a mut ShortcutConfig,
+  target: &str,
+) -> Option<&'a mut ShortcutSpec> {
+  match target {
+    "popover" => Some(&mut cfg.popover),
+    "sound" => Some(&mut cfg.sound),
+    "notif_mode" => Some(&mut cfg.notif_mode),
+    "prev_tag" => Some(&mut cfg.prev_tag),
+    "next_tag" => Some(&mut cfg.next_tag),
+    "focus_create" => Some(&mut cfg.focus_create),
+    "start_first" => Some(&mut cfg.start_first),
+    _ => None,
+  }
+}
+
+fn all_shortcut_targets() -> [&'static str; 7] {
+  [
+    "popover",
+    "sound",
+    "notif_mode",
+    "prev_tag",
+    "next_tag",
+    "focus_create",
+    "start_first",
+  ]
+}
+
+fn emit_shortcut_capture(app_handle: tauri::AppHandle, target: &'static str) {
+  let outer = app_handle.clone();
+  let inner = outer.clone();
+
+  let _ = outer.run_on_main_thread(move || {
+    if !inner.is_popover_shown() {
+      inner.show_popover();
+    }
+  });
+
+  tauri::async_runtime::spawn(async move {
+    std::thread::sleep(std::time::Duration::from_millis(60));
+    let _ = app_handle.emit(
+      "ui://capture-shortcut",
+      serde_json::json!({ "target": target }),
+    );
+  });
 }
 
 fn rebuild_tray_menu<R: tauri::Runtime>(
@@ -290,11 +388,51 @@ fn rebuild_tray_menu<R: tauri::Runtime>(
     None::<&str>,
   )?;
 
+  let prev_tag = MenuItem::with_id(
+    app,
+    "set_shortcut_prev_tag",
+    format!("Set Shortcut: Previous Tag ({})…", display_from_spec(&cfg.prev_tag)),
+    true,
+    None::<&str>,
+  )?;
+
+  let next_tag = MenuItem::with_id(
+    app,
+    "set_shortcut_next_tag",
+    format!("Set Shortcut: Next Tag ({})…", display_from_spec(&cfg.next_tag)),
+    true,
+    None::<&str>,
+  )?;
+
+  let focus_create = MenuItem::with_id(
+    app,
+    "set_shortcut_focus_create",
+    format!("Set Shortcut: Focus Add Task ({})…", display_from_spec(&cfg.focus_create)),
+    true,
+    None::<&str>,
+  )?;
+
+  let start_first = MenuItem::with_id(
+    app,
+    "set_shortcut_start_first",
+    format!("Set Shortcut: Start First Task ({})…", display_from_spec(&cfg.start_first)),
+    true,
+    None::<&str>,
+  )?;
+
   let shortcuts_menu = Submenu::with_items(
     app,
     "Shortcuts",
     true,
-    &[&set_popover, &set_sound, &set_notif_mode],
+    &[
+      &set_popover,
+      &set_sound,
+      &set_notif_mode,
+      &prev_tag,
+      &next_tag,
+      &focus_create,
+      &start_first,
+    ],
   )?;
 
   // Theme items
@@ -352,39 +490,17 @@ fn rebuild_tray_menu<R: tauri::Runtime>(
 fn register_shortcuts(app: &tauri::AppHandle, cfg: &ShortcutConfig) {
   let gs = app.global_shortcut();
 
-  let pop = spec_to_shortcut(&cfg.popover);
-  let snd = spec_to_shortcut(&cfg.sound);
-
-  if let Ok(sc) = pop {
-    if let Err(e) = gs.register(sc) {
-      eprintln!("❌ register popover shortcut failed: {e}");
+  for target in all_shortcut_targets() {
+    let Some(spec) = shortcut_spec_for_target(cfg, target) else { continue; };
+    if let Ok(sc) = spec_to_shortcut(spec) {
+      if let Err(e) = gs.register(sc) {
+        eprintln!("❌ register {target} shortcut failed: {e}");
+      } else {
+        eprintln!("✅ registered {target} shortcut");
+      }
     } else {
-      eprintln!("✅ registered popover shortcut");
+      eprintln!("❌ {target} shortcut invalid");
     }
-  } else {
-    eprintln!("❌ popover shortcut invalid");
-  }
-
-  if let Ok(sc) = snd {
-    if let Err(e) = gs.register(sc) {
-      eprintln!("❌ register sound shortcut failed: {e}");
-    } else {
-      eprintln!("✅ registered sound shortcut");
-    }
-  } else {
-    eprintln!("❌ sound shortcut invalid");
-  }
-
-  let nm = spec_to_shortcut(&cfg.notif_mode);
-
-  if let Ok(sc) = nm {
-    if let Err(e) = gs.register(sc) {
-      eprintln!("❌ register notif_mode shortcut failed: {e}");
-    } else {
-      eprintln!("✅ registered notif_mode shortcut");
-    }
-  } else {
-    eprintln!("❌ notif_mode shortcut invalid");
   }
 
 }
@@ -392,16 +508,11 @@ fn register_shortcuts(app: &tauri::AppHandle, cfg: &ShortcutConfig) {
 /// 取消注册旧快捷键（忽略错误）
 fn unregister_shortcuts(app: &tauri::AppHandle, cfg: &ShortcutConfig) {
   let gs = app.global_shortcut();
-
-  if let Ok(sc) = spec_to_shortcut(&cfg.popover) {
-    let _ = gs.unregister(sc);
-  }
-  if let Ok(sc) = spec_to_shortcut(&cfg.sound) {
-    let _ = gs.unregister(sc);
-  }
-
-  if let Ok(sc) = spec_to_shortcut(&cfg.notif_mode) {
-    let _ = gs.unregister(sc);
+  for target in all_shortcut_targets() {
+    let Some(spec) = shortcut_spec_for_target(cfg, target) else { continue; };
+    if let Ok(sc) = spec_to_shortcut(spec) {
+      let _ = gs.unregister(sc);
+    }
   }
   
 }
@@ -719,7 +830,7 @@ fn set_shortcut(
   alt: bool,
   ctrl: bool,
 ) -> Result<(), String> {
-  if target != "sound" && target != "popover" && target != "notif_mode" {
+  if shortcut_spec_for_target(&ShortcutConfig::default(), &target).is_none() {
     return Err("invalid target".to_string());
   }
   
@@ -733,45 +844,26 @@ fn set_shortcut(
   let mut guard = state.0.lock().map_err(|_| "shortcut mutex poisoned".to_string())?;
   let mut cfg = guard.clone();
 
-  // 冲突校验：两个动作不能用同一个 shortcut
-  let mut used = Vec::new();
-  used.push(spec_to_shortcut(&cfg.popover).ok());
-  used.push(spec_to_shortcut(&cfg.sound).ok());
-  used.push(spec_to_shortcut(&cfg.notif_mode).ok());
-
-  let conflict = match target.as_str() {
-    "popover" => {
-      spec_to_shortcut(&cfg.sound).ok().as_ref() == Some(&new_sc)
-        || spec_to_shortcut(&cfg.notif_mode).ok().as_ref() == Some(&new_sc)
+  for other_target in all_shortcut_targets() {
+    if other_target == target {
+      continue;
     }
-    "sound" => {
-      spec_to_shortcut(&cfg.popover).ok().as_ref() == Some(&new_sc)
-        || spec_to_shortcut(&cfg.notif_mode).ok().as_ref() == Some(&new_sc)
+    let Some(spec) = shortcut_spec_for_target(&cfg, other_target) else { continue; };
+    if spec_to_shortcut(spec).ok().as_ref() == Some(&new_sc) {
+      return Err("this shortcut is already used by another action".to_string());
     }
-    "notif_mode" => {
-      spec_to_shortcut(&cfg.popover).ok().as_ref() == Some(&new_sc)
-        || spec_to_shortcut(&cfg.sound).ok().as_ref() == Some(&new_sc)
-    }
-    _ => false,
-  };
-
-  if conflict {
-    return Err("this shortcut is already used by another action".to_string());
   } 
 
-
-  // 先取消注册旧的（只取消 target 的旧值）
+  let old_sc = shortcut_spec_for_target(&cfg, &target)
+    .and_then(|spec| spec_to_shortcut(spec).ok());
   let gs = app.global_shortcut();
-  if target == "popover" {
-    if let Ok(old_sc) = spec_to_shortcut(&cfg.popover) { let _ = gs.unregister(old_sc); }
-    cfg.popover = new_spec;
-  } else if target == "sound" {
-    if let Ok(old_sc) = spec_to_shortcut(&cfg.sound) { let _ = gs.unregister(old_sc); }
-    cfg.sound = new_spec;
-  } else {
-    if let Ok(old_sc) = spec_to_shortcut(&cfg.notif_mode) { let _ = gs.unregister(old_sc); }
-    cfg.notif_mode = new_spec;
+  if let Some(old_sc) = old_sc {
+    let _ = gs.unregister(old_sc);
   }
+  let Some(target_spec) = shortcut_spec_for_target_mut(&mut cfg, &target) else {
+    return Err("invalid target".to_string());
+  };
+  *target_spec = new_spec;
   
 
   // 注册新的
@@ -789,13 +881,9 @@ fn set_shortcut(
   }
 
   // 回传给前端（用来关 overlay / toast）
-  let display = if target == "popover" {
-    display_from_spec(&cfg.popover)
-  } else if target == "sound" {
-    display_from_spec(&cfg.sound)
-  } else {
-    display_from_spec(&cfg.notif_mode)
-  };
+  let display = shortcut_spec_for_target(&cfg, &target)
+    .map(display_from_spec)
+    .unwrap_or_default();
   
 
   let _ = app.emit(
@@ -804,6 +892,15 @@ fn set_shortcut(
   );
 
   Ok(())
+}
+
+#[tauri::command]
+fn get_shortcuts(state: State<ShortcutConfigState>) -> Result<ShortcutConfig, String> {
+  state
+    .0
+    .lock()
+    .map(|cfg| cfg.clone())
+    .map_err(|_| "shortcut mutex poisoned".to_string())
 }
 
 /// -----------------------------
@@ -834,12 +931,27 @@ pub fn run() {
           let pop = spec_to_shortcut(&cfg.popover).ok();
           let snd = spec_to_shortcut(&cfg.sound).ok();
           let nm = spec_to_shortcut(&cfg.notif_mode).ok();
+          let prev_tag = spec_to_shortcut(&cfg.prev_tag).ok();
+          let next_tag = spec_to_shortcut(&cfg.next_tag).ok();
+          let start_first = spec_to_shortcut(&cfg.start_first).ok();
+          let focus_create = spec_to_shortcut(&cfg.focus_create).ok();
 
           let is_pop = pop.as_ref().map(|s| shortcut == s).unwrap_or(false);
           let is_snd = snd.as_ref().map(|s| shortcut == s).unwrap_or(false);
           let is_nm = nm.as_ref().map(|s| shortcut == s).unwrap_or(false);
+          let is_prev_tag = prev_tag.as_ref().map(|s| shortcut == s).unwrap_or(false);
+          let is_next_tag = next_tag.as_ref().map(|s| shortcut == s).unwrap_or(false);
+          let is_start_first = start_first.as_ref().map(|s| shortcut == s).unwrap_or(false);
+          let is_focus_create = focus_create.as_ref().map(|s| shortcut == s).unwrap_or(false);
 
-          if !is_pop && !is_snd && !is_nm {
+          if !is_pop
+            && !is_snd
+            && !is_nm
+            && !is_prev_tag
+            && !is_next_tag
+            && !is_start_first
+            && !is_focus_create
+          {
             return;
           }
 
@@ -860,6 +972,23 @@ pub fn run() {
               if !h_ui.is_popover_shown() {
                 h_ui.show_popover();
               }
+              return;
+            }
+
+            if is_prev_tag || is_next_tag {
+              if !h_ui.is_popover_shown() {
+                h_ui.show_popover();
+              }
+              return;
+            }
+
+            if is_start_first && !h_ui.is_popover_shown() {
+              h_ui.show_popover();
+              return;
+            }
+
+            if is_focus_create && !h_ui.is_popover_shown() {
+              h_ui.show_popover();
             }
           });
 
@@ -889,6 +1018,34 @@ pub fn run() {
               let _ = h_emit.emit("ui://toggle-notif-mode", ());
             });
           }
+
+          if is_prev_tag || is_next_tag {
+            let h_emit = h.clone();
+            let direction = if is_prev_tag { "prev" } else { "next" };
+            tauri::async_runtime::spawn(async move {
+              std::thread::sleep(std::time::Duration::from_millis(80));
+              let _ = h_emit.emit(
+                "ui://switch-tag",
+                serde_json::json!({ "direction": direction }),
+              );
+            });
+          }
+
+          if is_start_first {
+            let h_emit = h.clone();
+            tauri::async_runtime::spawn(async move {
+              std::thread::sleep(std::time::Duration::from_millis(80));
+              let _ = h_emit.emit("ui://start-first-visible-task", ());
+            });
+          }
+
+          if is_focus_create {
+            let h_emit = h.clone();
+            tauri::async_runtime::spawn(async move {
+              std::thread::sleep(std::time::Duration::from_millis(80));
+              let _ = h_emit.emit("ui://focus-create-task", ());
+            });
+          }
           
           
 
@@ -909,6 +1066,7 @@ pub fn run() {
       hide_popover_cmd,
       show_popover_cmd, // ✅ 加这行
       set_shortcut,
+      get_shortcuts,
       set_popover_pin
     ])
 
@@ -1023,65 +1181,13 @@ pub fn run() {
           });
         }
 
-        "set_shortcut_popover" => {
-          let outer = app_handle_for_menu.clone();
-          let inner = outer.clone(); // ✅ 给 closure 用
-
-          let _ = outer.run_on_main_thread(move || {
-            if !inner.is_popover_shown() {
-              inner.show_popover();
-            }
-          });
-
-          let emit_handle = app_handle_for_menu.clone();
-          tauri::async_runtime::spawn(async move {
-            std::thread::sleep(std::time::Duration::from_millis(60));
-            let _ = emit_handle.emit(
-              "ui://capture-shortcut",
-              serde_json::json!({ "target": "popover" }),
-            );
-          });
-        }
-
-        "set_shortcut_sound" => {
-          let outer = app_handle_for_menu.clone();
-          let inner = outer.clone();
-
-          let _ = outer.run_on_main_thread(move || {
-            if !inner.is_popover_shown() {
-              inner.show_popover();
-            }
-          });
-
-          let emit_handle = app_handle_for_menu.clone();
-          tauri::async_runtime::spawn(async move {
-            std::thread::sleep(std::time::Duration::from_millis(60));
-            let _ = emit_handle.emit(
-              "ui://capture-shortcut",
-              serde_json::json!({ "target": "sound" }),
-            );
-          });
-        }
-
-        "set_shortcut_notif_mode" => {
-          let outer = app_handle_for_menu.clone();
-          let inner = outer.clone();
-
-          let _ = outer.run_on_main_thread(move || {
-            if !inner.is_popover_shown() {
-              inner.show_popover();
-            }
-          });
-
-          let emit_handle = app_handle_for_menu.clone();
-          tauri::async_runtime::spawn(async move {
-            std::thread::sleep(std::time::Duration::from_millis(60));
-            let _ = emit_handle.emit(
-              "ui://capture-shortcut",
-              serde_json::json!({ "target": "notif_mode" }),
-            );
-          });
-        }
+        "set_shortcut_popover" => emit_shortcut_capture(app_handle_for_menu.clone(), "popover"),
+        "set_shortcut_sound" => emit_shortcut_capture(app_handle_for_menu.clone(), "sound"),
+        "set_shortcut_notif_mode" => emit_shortcut_capture(app_handle_for_menu.clone(), "notif_mode"),
+        "set_shortcut_prev_tag" => emit_shortcut_capture(app_handle_for_menu.clone(), "prev_tag"),
+        "set_shortcut_next_tag" => emit_shortcut_capture(app_handle_for_menu.clone(), "next_tag"),
+        "set_shortcut_focus_create" => emit_shortcut_capture(app_handle_for_menu.clone(), "focus_create"),
+        "set_shortcut_start_first" => emit_shortcut_capture(app_handle_for_menu.clone(), "start_first"),
 
 
 

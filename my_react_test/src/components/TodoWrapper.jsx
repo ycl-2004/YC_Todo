@@ -84,6 +84,62 @@ function getDayKeyFromIso(isoString) {
   return getLocalDayKey(date);
 }
 
+function getAdjacentTag(currentTag, tags, direction) {
+  const orderedTags = ["All", ...(Array.isArray(tags) ? tags : [])];
+  if (!orderedTags.length) return "All";
+
+  const currentIndex = orderedTags.indexOf(currentTag);
+  const safeIndex = currentIndex >= 0 ? currentIndex : 0;
+  const nextIndex =
+    direction === "prev"
+      ? Math.max(0, safeIndex - 1)
+      : Math.min(orderedTags.length - 1, safeIndex + 1);
+
+  return orderedTags[nextIndex];
+}
+
+const SHORTCUT_CAPTURE_META = {
+  popover: {
+    label: "Popover",
+    hint: "Press the shortcut you want to set (⌘⇧J). Press Esc to cancel.",
+  },
+  sound: {
+    label: "Sound",
+    hint: "Press the shortcut you want to set (⌘⇧I). Press Esc to cancel.",
+  },
+  notif_mode: {
+    label: "Notify Mode",
+    hint: "Press the shortcut you want to set (⌘⇧O). Press Esc to cancel.",
+  },
+  prev_tag: {
+    label: "Previous Tag",
+    hint: "Press the shortcut you want to set (⌘⇧K). Press Esc to cancel.",
+  },
+  next_tag: {
+    label: "Next Tag",
+    hint: "Press the shortcut you want to set (⌘⇧L). Press Esc to cancel.",
+  },
+  focus_create: {
+    label: "Focus Add Task",
+    hint: "Press the shortcut you want to set (⌘⇧U). Press Esc to cancel.",
+  },
+  start_first: {
+    label: "Start First Task",
+    hint: "Press the shortcut you want to set (⌘⇧Enter). Press Esc to cancel.",
+  },
+};
+
+function shortcutMatchesEvent(spec, e) {
+  if (!spec) return false;
+  return (
+    Boolean(spec.meta) === Boolean(e.metaKey) &&
+    Boolean(spec.shift) === Boolean(e.shiftKey) &&
+    Boolean(spec.alt) === Boolean(e.altKey) &&
+    Boolean(spec.ctrl) === Boolean(e.ctrlKey) &&
+    spec.code === e.code
+  );
+}
+
 function applyCompletionToDailyStats(stats, todo, direction) {
   const base = stats ?? createEmptyDailyStats();
   if (!todo || todo.type === "note") return base;
@@ -155,7 +211,8 @@ async function getAllowedFsDirs() {
 
 function isPathWithinAllowedDirs(path, allowedDirs) {
   return allowedDirs.some(
-    (dir) => path === dir || path.startsWith(`${dir}/`) || path.startsWith(`${dir}\\`),
+    (dir) =>
+      path === dir || path.startsWith(`${dir}/`) || path.startsWith(`${dir}\\`),
   );
 }
 
@@ -1461,6 +1518,26 @@ function TodoWrapper() {
   const isPopoverVisible = () => document.visibilityState === "visible";
 
   const [pendingShortcut, setPendingShortcut] = useState(null);
+  const [shortcutConfig, setShortcutConfig] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+
+    const loadShortcuts = async () => {
+      try {
+        const cfg = await invoke("get_shortcuts");
+        if (alive) setShortcutConfig(cfg);
+      } catch (err) {
+        console.error("[shortcuts] load failed:", err);
+      }
+    };
+
+    loadShortcuts();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let un1, un2;
@@ -1468,28 +1545,22 @@ function TodoWrapper() {
     (async () => {
       un1 = await listen("ui://capture-shortcut", (e) => {
         const target = e?.payload?.target;
-        if (
-          target !== "sound" &&
-          target !== "popover" &&
-          target !== "notif_mode"
-        )
-          return;
+        const meta = SHORTCUT_CAPTURE_META[target];
+        if (!meta) return;
 
         setPendingShortcut(null);
         setShortcutCapture({
           open: true,
           target,
-          hint:
-            target === "sound"
-              ? "Press the shortcut you want to set (⌘⇧K). Press Esc to cancel."
-              : target === "popover"
-                ? "Press the shortcut you want to set (⌘⇧J). Press Esc to cancel."
-                : "Press the shortcut you want to set (⌘⇧L). Press Esc to cancel.",
+          hint: meta.hint,
         });
       });
 
       un2 = await listen("ui://shortcut-updated", () => {
         setShortcutCapture((s) => ({ ...s, open: false }));
+        invoke("get_shortcuts")
+          .then((cfg) => setShortcutConfig(cfg))
+          .catch((err) => console.error("[shortcuts] refresh failed:", err));
       });
     })();
 
@@ -1524,6 +1595,8 @@ function TodoWrapper() {
   const lastToggleAtRef = useRef(0);
 
   const lastToggleNotifAtRef = useRef(0);
+  const lastSwitchTagAtRef = useRef(0);
+  const lastStartFirstTaskAtRef = useRef(0);
 
   useEffect(() => {
     let un;
@@ -1560,6 +1633,109 @@ function TodoWrapper() {
       un?.();
     };
   }, []);
+
+  useEffect(() => {
+    if (window.__unlistenSwitchTag) {
+      try {
+        window.__unlistenSwitchTag();
+      } catch {}
+      window.__unlistenSwitchTag = null;
+    }
+
+    (async () => {
+      const un = await listen("ui://switch-tag", (e) => {
+        const direction = e?.payload?.direction;
+        if (direction !== "prev" && direction !== "next") return;
+        const now = performance.now();
+        if (now - lastSwitchTagAtRef.current < 120) return;
+        lastSwitchTagAtRef.current = now;
+
+        setActiveTag((current) => getAdjacentTag(current, tags, direction));
+      });
+
+      window.__unlistenSwitchTag = un;
+    })();
+
+    return () => {
+      if (window.__unlistenSwitchTag) {
+        try {
+          window.__unlistenSwitchTag();
+        } catch {}
+        window.__unlistenSwitchTag = null;
+      }
+    };
+  }, [tags]);
+
+  useEffect(() => {
+    if (window.__unlistenStartFirstTask) {
+      try {
+        window.__unlistenStartFirstTask();
+      } catch {}
+      window.__unlistenStartFirstTask = null;
+    }
+
+    (async () => {
+      const un = await listen("ui://start-first-visible-task", () => {
+        const now = performance.now();
+        if (now - lastStartFirstTaskAtRef.current < 120) return;
+        lastStartFirstTaskAtRef.current = now;
+
+        const firstTask = visibleStartableTasks[0];
+        if (!firstTask) return;
+
+        if (activeId === firstTask.id) {
+          if (status === "paused") {
+            resumeActive();
+          }
+          return;
+        }
+
+        startTodo(firstTask);
+      });
+
+      window.__unlistenStartFirstTask = un;
+    })();
+
+    return () => {
+      if (window.__unlistenStartFirstTask) {
+        try {
+          window.__unlistenStartFirstTask();
+        } catch {}
+        window.__unlistenStartFirstTask = null;
+      }
+    };
+  }, [visibleStartableTasks, activeId, status]);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (shortcutCapture.open) return;
+      if (!shortcutConfig) return;
+
+      if (shortcutMatchesEvent(shortcutConfig.prev_tag, e)) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const now = performance.now();
+        if (now - lastSwitchTagAtRef.current < 120) return;
+        lastSwitchTagAtRef.current = now;
+        setActiveTag((current) => getAdjacentTag(current, tags, "prev"));
+        return;
+      }
+
+      if (shortcutMatchesEvent(shortcutConfig.next_tag, e)) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const now = performance.now();
+        if (now - lastSwitchTagAtRef.current < 120) return;
+        lastSwitchTagAtRef.current = now;
+        setActiveTag((current) => getAdjacentTag(current, tags, "next"));
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [shortcutCapture.open, shortcutConfig, tags]);
 
   useEffect(() => {
     if (window.__unlistenToggleSound) {
@@ -1633,7 +1809,7 @@ function TodoWrapper() {
           ctrl: sc.mods.ctrl,
         });
       } catch (err) {
-        alert(String(err));
+        showFlashNotice(`Shortcut update failed: ${String(err)}`, "error");
         setPendingShortcut(null);
       }
     };
@@ -1786,7 +1962,11 @@ function TodoWrapper() {
 
     if (shouldAdjustStats) {
       setDailyStats((prevStats) =>
-        applyCompletionToDailyStats(prevStats, targetTodo, nextCompleted ? 1 : -1),
+        applyCompletionToDailyStats(
+          prevStats,
+          targetTodo,
+          nextCompleted ? 1 : -1,
+        ),
       );
     }
   };
@@ -1935,8 +2115,14 @@ function TodoWrapper() {
     if (!activeId) return;
 
     const finishedTodo = todos.find((t) => t.id === activeId) || null;
-    if (finishedTodo && !finishedTodo.isCompleted && finishedTodo.type !== "note") {
-      setDailyStats((prev) => applyCompletionToDailyStats(prev, finishedTodo, 1));
+    if (
+      finishedTodo &&
+      !finishedTodo.isCompleted &&
+      finishedTodo.type !== "note"
+    ) {
+      setDailyStats((prev) =>
+        applyCompletionToDailyStats(prev, finishedTodo, 1),
+      );
     }
 
     setTodos((prev) =>
@@ -2043,14 +2229,20 @@ function TodoWrapper() {
       });
 
       const importedTagsRaw = localStorage.getItem(TAGS_KEY);
-      const importedTags = importedTagsRaw ? safeParse(importedTagsRaw, null) : null;
-      const normalizedTags = Array.isArray(importedTags) && importedTags.length
-        ? Array.from(
-            new Map(
-              importedTags.map((tag) => [String(tag).trim(), String(tag).trim()]),
-            ).values(),
-          ).filter((tag) => tag && tag !== "All")
-        : DEFAULT_TAGS;
+      const importedTags = importedTagsRaw
+        ? safeParse(importedTagsRaw, null)
+        : null;
+      const normalizedTags =
+        Array.isArray(importedTags) && importedTags.length
+          ? Array.from(
+              new Map(
+                importedTags.map((tag) => [
+                  String(tag).trim(),
+                  String(tag).trim(),
+                ]),
+              ).values(),
+            ).filter((tag) => tag && tag !== "All")
+          : DEFAULT_TAGS;
       setTags(normalizedTags.length ? normalizedTags : DEFAULT_TAGS);
 
       const importedTagColorsRaw = localStorage.getItem(TAG_COLORS_KEY);
@@ -2064,11 +2256,16 @@ function TodoWrapper() {
           : {}),
       });
 
-      const importedSettings = safeParse(localStorage.getItem(SETTINGS_KEY), {});
+      const importedSettings = safeParse(
+        localStorage.getItem(SETTINGS_KEY),
+        {},
+      );
       setAccent(importedSettings?.accent ?? "#d4a5c1");
       setThemeMode(importedSettings?.themeMode ?? "system");
       setTitle(localStorage.getItem(TITLE_KEY) || "YC Todo");
-      setSubtitle(localStorage.getItem(`${TITLE_KEY}_subtitle`) || "记录个小生活");
+      setSubtitle(
+        localStorage.getItem(`${TITLE_KEY}_subtitle`) || "记录个小生活",
+      );
       setEntryFilter(localStorage.getItem(ENTRY_FILTER_KEY) || "all");
       setActiveTag("All");
       setEditing(null);
@@ -2139,7 +2336,9 @@ function TodoWrapper() {
     }
 
     const hasMinutePopover = Boolean(document.getElementById("minute-popover"));
-    const hasTagManagerPopover = Boolean(document.querySelector(".tag-mgr-pop"));
+    const hasTagManagerPopover = Boolean(
+      document.querySelector(".tag-mgr-pop"),
+    );
     const hasTagManagerPalette = Boolean(
       document.querySelector(".tag-mgr-palette"),
     );
@@ -2165,6 +2364,7 @@ function TodoWrapper() {
       if (quietOverlayOpen) return;
       if (e.key !== "Enter") return;
       if (e.isComposing) return;
+      if (e.metaKey || e.shiftKey || e.altKey || e.ctrlKey) return;
 
       const t = e.target;
       const isTyping =
@@ -2268,11 +2468,8 @@ function TodoWrapper() {
             <div className="shortcut-head">
               <div className="shortcut-title">
                 Shortcut：
-                {shortcutCapture.target === "sound"
-                  ? "Sound"
-                  : shortcutCapture.target === "popover"
-                    ? "Popover"
-                    : "Notify Mode"}
+                {SHORTCUT_CAPTURE_META[shortcutCapture.target]?.label ??
+                  "Shortcut"}
               </div>
 
               <button
@@ -2561,6 +2758,7 @@ function TodoWrapper() {
             isLocked={isLocked}
             tags={tags}
             tagColors={tagColors}
+            activeTag={activeTag}
           />
 
           <div className="now-bar">
