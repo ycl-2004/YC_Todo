@@ -21,6 +21,12 @@ use tauri_plugin_global_shortcut::{
 
 struct AlarmState(Mutex<Option<Child>>);
 
+#[derive(Debug, Clone, Serialize)]
+struct StoredAudio {
+  path: String,
+  name: String,
+}
+
 #[cfg(target_os = "macos")]
 use cocoa::appkit::{NSOpenPanel, NSModalResponse, NSSavePanel};
 #[cfg(target_os = "macos")]
@@ -180,6 +186,72 @@ fn save_shortcuts(app: &tauri::AppHandle, cfg: &ShortcutConfig) {
   if let Ok(s) = serde_json::to_string_pretty(cfg) {
     let _ = fs::write(p, s);
   }
+}
+
+fn stored_audio_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+  let dir = app
+    .path()
+    .app_local_data_dir()
+    .map_err(|e| format!("resolve app local data dir failed: {}", e))?;
+
+  fs::create_dir_all(&dir)
+    .map_err(|e| format!("create app local data dir failed: {}", e))?;
+
+  Ok(dir.join("alarm.mp3"))
+}
+
+fn path_to_string(path: PathBuf) -> String {
+  path.to_string_lossy().into_owned()
+}
+
+fn copy_audio_to_app_storage(
+  app: &tauri::AppHandle,
+  source: PathBuf,
+) -> Result<StoredAudio, String> {
+  let ext = source
+    .extension()
+    .and_then(|e| e.to_str())
+    .unwrap_or("")
+    .to_ascii_lowercase();
+
+  if ext != "mp3" {
+    return Err("Please choose an MP3 file.".to_string());
+  }
+
+  let name = source
+    .file_name()
+    .and_then(|n| n.to_str())
+    .unwrap_or("alarm.mp3")
+    .to_string();
+
+  let dest = stored_audio_file_path(app)?;
+
+  let same_file = match (fs::canonicalize(&source), fs::canonicalize(&dest)) {
+    (Ok(src), Ok(dst)) => src == dst,
+    _ => false,
+  };
+
+  if !same_file {
+    let tmp = dest.with_extension("mp3.tmp");
+    if tmp.exists() {
+      let _ = fs::remove_file(&tmp);
+    }
+
+    fs::copy(&source, &tmp)
+      .map_err(|e| format!("copy MP3 to app storage failed: {}", e))?;
+
+    if dest.exists() {
+      let _ = fs::remove_file(&dest);
+    }
+
+    fs::rename(&tmp, &dest)
+      .map_err(|e| format!("save MP3 to app storage failed: {}", e))?;
+  }
+
+  Ok(StoredAudio {
+    path: path_to_string(dest),
+    name,
+  })
 }
 
 fn to_modifiers(spec: &ShortcutSpec) -> Option<Modifiers> {
@@ -522,10 +594,10 @@ fn unregister_shortcuts(app: &tauri::AppHandle, cfg: &ShortcutConfig) {
 /// -----------------------------
 
 /// ✅ Open system file picker safely in menubar/popover mode
-/// Returns: Some(path) or None
+/// Copies the selected MP3 into app storage and returns the stored file.
 #[tauri::command]
-async fn pick_audio(app: tauri::AppHandle) -> Result<Option<String>, String> {
-  let (tx, rx) = std::sync::mpsc::channel::<Option<String>>();
+async fn pick_audio(app: tauri::AppHandle) -> Result<Option<StoredAudio>, String> {
+  let (tx, rx) = std::sync::mpsc::channel::<Result<Option<StoredAudio>, String>>();
 
   let app_ui = app.clone();
   let _ = app.run_on_main_thread(move || {
@@ -537,9 +609,11 @@ async fn pick_audio(app: tauri::AppHandle) -> Result<Option<String>, String> {
     app_ui
       .dialog()
       .file()
-      .add_filter("Audio", &["mp3", "m4a", "wav", "aac"])
+      .add_filter("MP3 Audio", &["mp3"])
       .pick_file(move |path_opt| {
-        let picked = path_opt.map(|p| p.to_string());
+        let picked = path_opt
+          .map(|p| copy_audio_to_app_storage(&app_after, PathBuf::from(p.to_string())))
+          .transpose();
 
         let app_restore = app_after.clone();
         let _ = app_after.run_on_main_thread(move || {
@@ -554,11 +628,37 @@ async fn pick_audio(app: tauri::AppHandle) -> Result<Option<String>, String> {
       });
   });
 
-  let picked = tauri::async_runtime::spawn_blocking(move || rx.recv().ok().flatten())
+  tauri::async_runtime::spawn_blocking(move || {
+    rx.recv()
+      .unwrap_or_else(|_| Err("dialog did not return a file".to_string()))
+  })
     .await
-    .map_err(|_| "dialog join error".to_string())?;
+    .map_err(|_| "dialog join error".to_string())?
+}
 
-  Ok(picked)
+#[tauri::command]
+fn get_stored_audio(app: tauri::AppHandle) -> Result<Option<StoredAudio>, String> {
+  let path = stored_audio_file_path(&app)?;
+
+  if !path.exists() {
+    return Ok(None);
+  }
+
+  Ok(Some(StoredAudio {
+    path: path_to_string(path),
+    name: "alarm.mp3".to_string(),
+  }))
+}
+
+#[tauri::command]
+fn clear_stored_audio(app: tauri::AppHandle) -> Result<(), String> {
+  let path = stored_audio_file_path(&app)?;
+
+  if path.exists() {
+    fs::remove_file(path).map_err(|e| format!("clear stored MP3 failed: {}", e))?;
+  }
+
+  Ok(())
 }
 
 #[tauri::command]
@@ -1059,6 +1159,8 @@ pub fn run() {
 
     .invoke_handler(tauri::generate_handler![
       pick_audio,
+      get_stored_audio,
+      clear_stored_audio,
       pick_import_file,
       pick_export_file,
       play_alarm,

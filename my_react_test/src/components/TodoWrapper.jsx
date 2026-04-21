@@ -751,11 +751,8 @@ function TodoWrapper() {
   // Sound settings (mp3 alarm)
   // -----------------------------
   const [soundDataUrl, setSoundDataUrl] = useState(null);
-
-  const [soundPath, setSoundPath] = useState(() => {
-    const data = readStoredData();
-    return data?.ui?.sound?.path ?? "";
-  });
+  const [soundPath, setSoundPath] = useState("");
+  const [soundLoadRevision, setSoundLoadRevision] = useState(0);
 
   const [soundName, setSoundName] = useState(() => {
     const data = readStoredData();
@@ -1110,22 +1107,46 @@ function TodoWrapper() {
     } catch {}
   };
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadStoredAudio = async () => {
+      try {
+        const stored = await invoke("get_stored_audio");
+        if (cancelled) return;
+
+        if (!stored?.path) {
+          setSoundPath("");
+          setSoundDataUrl(null);
+          setSoundName("");
+          return;
+        }
+
+        setSoundPath(stored.path);
+        setSoundName((current) => current || stored.name || "alarm.mp3");
+      } catch (e) {
+        console.warn("[sound] get stored MP3 failed:", e);
+      }
+    };
+
+    loadStoredAudio();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const onPickMp3 = async () => {
     try {
-      const path = await invoke("pick_audio");
-      if (!path) return;
+      const stored = await invoke("pick_audio");
+      if (!stored?.path) return;
 
       revokeUrlIfNeeded(soundDataUrl);
+      setSoundDataUrl(null);
 
-      setSoundPath(path);
-      setSoundName(path.split("/").pop() || "sound");
-
-      const bytes = await readFile(path);
-      const uint8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-      const blob = new Blob([uint8], { type: "audio/mpeg" });
-
-      const url = URL.createObjectURL(blob);
-      setSoundDataUrl(url);
+      setSoundPath(stored.path);
+      setSoundName(stored.name || "alarm.mp3");
+      setSoundLoadRevision((revision) => revision + 1);
     } catch (e) {
       console.error("[Upload MP3] error:", e);
       showFlashNotice(`Upload dialog failed: ${String(e)}`, "error");
@@ -1137,6 +1158,13 @@ function TodoWrapper() {
     setSoundDataUrl(null);
     setSoundName("");
     setSoundPath("");
+    setSoundLoadRevision((revision) => revision + 1);
+
+    try {
+      await invoke("clear_stored_audio");
+    } catch (e) {
+      console.warn("[sound] clear stored MP3 failed:", e);
+    }
 
     stopSound();
     try {
@@ -1374,13 +1402,21 @@ function TodoWrapper() {
   ]);
 
   useEffect(() => {
+    let cancelled = false;
+
     const restore = async () => {
-      if (!soundPath) return;
+      if (!soundPath) {
+        revokeUrlIfNeeded(soundDataUrl);
+        setSoundDataUrl(null);
+        return;
+      }
 
       try {
         revokeUrlIfNeeded(soundDataUrl);
 
         const bytes = await readFile(soundPath);
+        if (cancelled) return;
+
         const uint8 =
           bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
         const blob = new Blob([uint8], { type: "audio/mpeg" });
@@ -1392,8 +1428,11 @@ function TodoWrapper() {
     };
 
     restore();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [soundPath]);
+  }, [soundPath, soundLoadRevision]);
 
   // -----------------------------
   // countdown tick
@@ -2678,7 +2717,7 @@ function TodoWrapper() {
                             type="button"
                             className="btn ghost"
                             onClick={clearSound}
-                            disabled={!soundDataUrl}
+                            disabled={!soundDataUrl && !soundPath}
                             title="Clear"
                           >
                             Clear

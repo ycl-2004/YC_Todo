@@ -22,7 +22,11 @@
 
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "$DOWNLOAD/**" }, { "path": "$DESKTOP/**" }]
+      "allow": [
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$APPLOCALDATA/**" }
+      ]
     }
   ]
 }
