@@ -98,20 +98,22 @@ open "/Applications/YC Todo.app"
 
 ## Screenshots
 
-The public capture set is being refreshed for the v0.2 interface. The exact
-file names, demo-data rules, and six requested views are documented in
-[`docs/screenshots/README.md`](docs/screenshots/README.md). Add those PNGs and
-uncomment the block below—no README restructuring is required.
+These six views show the core workflow in the v0.2 interface. The capture rules
+and the purpose of each image are documented in
+[`docs/screenshots/README.md`](docs/screenshots/README.md).
 
-<!--
-| Task list | Progressive actions | Title preview |
-| --- | --- | --- |
-| ![YC Todo task list](docs/screenshots/01-task-list.png) | ![YC Todo action rail](docs/screenshots/02-action-rail.png) | ![YC Todo title preview](docs/screenshots/03-title-preview.png) |
-
-| Focus timer | Settings | Dark mode |
-| --- | --- | --- |
-| ![YC Todo focus timer](docs/screenshots/04-focus-timer.png) | ![YC Todo settings](docs/screenshots/05-settings.png) | ![YC Todo dark mode](docs/screenshots/06-dark-mode.png) |
--->
+<table>
+  <tr>
+    <td align="center"><strong>Task list</strong><br><img src="docs/screenshots/01.png" alt="YC Todo task list" width="260"></td>
+    <td align="center"><strong>Progressive actions</strong><br><img src="docs/screenshots/02.png" alt="YC Todo progressive action rail" width="260"></td>
+    <td align="center"><strong>Title preview</strong><br><img src="docs/screenshots/03.png" alt="YC Todo long title preview" width="260"></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Focus timer</strong><br><img src="docs/screenshots/04.png" alt="YC Todo focus timer sheet" width="260"></td>
+    <td align="center"><strong>Tag settings</strong><br><img src="docs/screenshots/05.png" alt="YC Todo tag settings" width="260"></td>
+    <td align="center"><strong>Dark mode</strong><br><img src="docs/screenshots/06.png" alt="YC Todo dark mode notifications" width="260"></td>
+  </tr>
+</table>
 
 ## Privacy
 
