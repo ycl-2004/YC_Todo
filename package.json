@@ -1,7 +1,7 @@
 {
   "name": "yc-todo",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "A focused macOS menu bar task manager.",
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
     "tauri": "tauri",
     "verify:repo": "node scripts/verify-repository.mjs",
     "verify": "npm run verify:repo && npm run lint && npm run build && cargo check --manifest-path src-tauri/Cargo.toml --locked",
+    "release:macos": "bash scripts/build-release.sh",
     "bump:patch": "node scripts/bump-version.cjs patch",
     "bump:minor": "node scripts/bump-version.cjs minor",
     "bump:major": "node scripts/bump-version.cjs major"

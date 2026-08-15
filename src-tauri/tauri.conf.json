@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "YC Todo",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "identifier": "com.yichen.yc.todo",
   "build": {
     "frontendDist": "../dist",
@@ -29,14 +29,21 @@
     ],
     "security": {
       "csp": null,
-      "capabilities": ["default"]
+      "capabilities": [
+        "default"
+      ]
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "icon": ["icons/icon.icns"],
+    "targets": [
+      "app"
+    ],
+    "icon": [
+      "icons/icon.icns"
+    ],
     "macOS": {
+      "minimumSystemVersion": "12.0",
       "infoPlist": "Info.plist",
       "entitlements": "entitlements.plist"
     }

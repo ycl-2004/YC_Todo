@@ -52,9 +52,9 @@ export function useHoverIntent({
 /**
  * Portal-rendered card anchored above (preferred) or below an element.
  *
- * `variant="block"` spans the window width minus the edge inset, which is what
- * a long-text preview wants in a 386px window. `variant="fit"` measures its own
- * content first and then centres itself on the anchor.
+ * `variant="row"` follows the nearest task row so a long-text preview remains
+ * visually attached to its source. `variant="fit"` measures its own content
+ * first and then centres itself on the anchor.
  */
 function HoverCard({
   anchorRef,
@@ -67,12 +67,14 @@ function HoverCard({
   onRequestClose,
   onPointerEnter,
   onPointerLeave,
+  style: customStyle,
   children,
 }) {
   const cardRef = useRef(null);
   const [pos, setPos] = useState(null);
 
   const isFit = variant === "fit";
+  const isRow = variant === "row";
 
   useLayoutEffect(() => {
     if (!open) {
@@ -83,7 +85,11 @@ function HoverCard({
     const anchor = anchorRef?.current;
     if (!anchor) return;
 
-    const r = anchor.getBoundingClientRect();
+    const anchorRect = anchor.getBoundingClientRect();
+    const rowRect = isRow
+      ? anchor.closest(".todo")?.getBoundingClientRect?.()
+      : null;
+    const placementRect = rowRect ?? anchorRect;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
@@ -94,8 +100,9 @@ function HoverCard({
     const topLimit = bounds ? Math.max(EDGE, bounds.top) : EDGE;
     const bottomLimit = bounds ? Math.min(vh - EDGE, bounds.bottom) : vh - EDGE;
 
-    const spaceAbove = r.top - topLimit - GAP;
-    const spaceBelow = bottomLimit - r.bottom - GAP;
+    const placementGap = isRow ? 6 : GAP;
+    const spaceAbove = placementRect.top - topLimit - placementGap;
+    const spaceBelow = bottomLimit - placementRect.bottom - placementGap;
 
     // Prefer above (that is where the user asked for it); fall back to
     // whichever side actually has more room.
@@ -104,7 +111,10 @@ function HoverCard({
     let left = EDGE;
     let width = vw - EDGE * 2;
 
-    if (isFit) {
+    if (isRow && rowRect) {
+      width = Math.min(rowRect.width, vw - EDGE * 2);
+      left = Math.max(EDGE, Math.min(rowRect.left, vw - EDGE - width));
+    } else if (isFit) {
       // Measured on the invisible first pass so the card can be centred
       // without a CSS translate fighting the JS-computed left.
       const measured = cardRef.current?.getBoundingClientRect?.().width ?? 0;
@@ -115,22 +125,48 @@ function HoverCard({
       width = null;
       left = Math.max(
         EDGE,
-        Math.min(r.left + r.width / 2 - measured / 2, vw - EDGE - measured),
+        Math.min(
+          anchorRect.left + anchorRect.width / 2 - measured / 2,
+          vw - EDGE - measured,
+        ),
       );
     }
+
+    const availableSpace = placeUp ? spaceAbove : spaceBelow;
+    const maxHeight = isRow
+      ? Math.min(120, Math.max(56, availableSpace))
+      : Math.max(minSpace, availableSpace);
+    const arrowLeft = isRow
+      ? Math.max(
+          18,
+          Math.min(
+            anchorRect.left + anchorRect.width / 2 - left,
+            (width ?? 0) - 18,
+          ),
+        )
+      : null;
 
     setPos({
       measuring: false,
       placeUp,
       left,
       width,
-      maxHeight: Math.max(minSpace, placeUp ? spaceAbove : spaceBelow),
-      top: placeUp ? null : r.bottom + GAP,
-      bottom: placeUp ? vh - r.top + GAP : null,
+      maxHeight,
+      arrowLeft,
+      top: placeUp ? null : placementRect.bottom + placementGap,
+      bottom: placeUp ? vh - placementRect.top + placementGap : null,
     });
     // `measuring` is a dependency so the fit variant gets a second pass once
     // the card is in the DOM and can report its own width.
-  }, [open, anchorRef, boundsSelector, minSpace, isFit, pos?.measuring]);
+  }, [
+    open,
+    anchorRef,
+    boundsSelector,
+    minSpace,
+    isFit,
+    isRow,
+    pos?.measuring,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -153,7 +189,7 @@ function HoverCard({
 
   if (!open || !pos) return null;
 
-  const style = { left: `${pos.left}px` };
+  const style = { ...customStyle, left: `${pos.left}px` };
 
   if (pos.measuring) {
     style.top = "-9999px";
@@ -161,6 +197,9 @@ function HoverCard({
   } else {
     if (pos.width != null) style.width = `${pos.width}px`;
     if (pos.maxHeight != null) style.maxHeight = `${pos.maxHeight}px`;
+    if (pos.arrowLeft != null) {
+      style["--hover-arrow-left"] = `${pos.arrowLeft}px`;
+    }
     if (pos.placeUp) style.bottom = `${pos.bottom}px`;
     else style.top = `${pos.top}px`;
   }

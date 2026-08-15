@@ -8,7 +8,8 @@
 
 .collapse-btn {
   width: 100%;
-  padding: 10px 44px 10px 12px;
+  min-height: 36px;
+  padding: 8px 44px 8px 12px;
 
   display: flex;
   align-items: center;
@@ -20,7 +21,7 @@
   background: var(--surface-1);
   color: var(--ink);
 
-  font-weight: 900;
+  font-weight: 750;
   cursor: pointer;
   box-shadow: none;
 
@@ -54,10 +55,10 @@
   top: 50%;
   right: 10px;
   transform: translateY(-50%);
-  width: 20px;
-  min-width: 20px;
-  height: 20px;
-  border-radius: 999px;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--card-border) 72%, transparent);
   background: color-mix(in srgb, var(--surface-2) 82%, transparent);
   color: color-mix(in srgb, var(--ink) 74%, var(--accent) 26%);
@@ -65,10 +66,19 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
   transition:
     transform 120ms var(--ease),
     filter 120ms var(--ease),
     opacity 120ms var(--ease);
+}
+
+.completed-header:hover .completed-clear-btn,
+.completed-header:focus-within .completed-clear-btn,
+.completed-panel.is-expanded .completed-clear-btn {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .completed-clear-btn:hover {
@@ -81,11 +91,12 @@
 
 .completed-clear-btn:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .completed-list {
-  margin-top: 10px;
+  margin-top: 8px;
 
   max-height: 220px;
   overflow-y: auto;

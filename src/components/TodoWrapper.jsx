@@ -5,9 +5,16 @@ import { invoke } from "@tauri-apps/api/core";
 import { downloadDir, normalize, desktopDir } from "@tauri-apps/api/path";
 import { readFile, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { listen } from "@tauri-apps/api/event";
-import { MdDeleteSweep } from "react-icons/md";
+import {
+  MdCheck,
+  MdDeleteSweep,
+  MdExpandMore,
+  MdInsights,
+  MdMusicNote,
+  MdNotificationsNone,
+  MdSearch,
+} from "react-icons/md";
 import TagManager from "./TagManager";
-import TipButton from "./TipButton.jsx";
 
 const STORAGE_KEY = "menubar_todo_v1";
 const STORAGE_BACKUP_KEY = "menubar_todo_v1_backup";
@@ -307,6 +314,7 @@ function TodoWrapper() {
   // -----------------------------
   const initialLoadedRef = useRef(false);
   const notifBtnRef = useRef(null);
+  const startModeWrapRef = useRef(null);
 
   const DEFAULT_TAGS = ["Study", "Exam", "Life", "Daily", "Other"];
 
@@ -723,7 +731,7 @@ function TodoWrapper() {
   /* Counted before the search filter, so searching never looks like tasks
      disappeared. */
   const remainingCount = visibleIncompleteUnsearched.length;
-  const entryAllLabel = activeTag === "All" ? "Everything" : activeTag;
+  const entryAllLabel = "All items";
 
   // -----------------------------
   // Notification mode (NEW)
@@ -738,6 +746,7 @@ function TodoWrapper() {
     const data = readStoredData();
     return data?.ui?.startMode ?? "strict";
   });
+  const [showStartModeMenu, setShowStartModeMenu] = useState(false);
 
   const [showNotifyPanel, setShowNotifyPanel] = useState(false);
   const [showTodaySummary, setShowTodaySummary] = useState(false);
@@ -833,6 +842,25 @@ function TodoWrapper() {
     return () => document.removeEventListener("mousedown", onDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showNotifyPanel, soundPath]);
+
+  useEffect(() => {
+    if (!showStartModeMenu) return;
+
+    const onDown = (e) => {
+      if (startModeWrapRef.current?.contains(e.target)) return;
+      setShowStartModeMenu(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") setShowStartModeMenu(false);
+    };
+
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [showStartModeMenu]);
 
   // Quiet overlay: Esc not 關閉
   useEffect(() => {
@@ -2217,8 +2245,33 @@ function TodoWrapper() {
 
   const clearCompletedTasks = () => {
     if (isLocked) return;
+    const removed = todos
+      .map((todo, index) => ({ todo, index }))
+      .filter(({ todo }) => todo.isCompleted);
+    if (!removed.length) return;
+
     setTodos((prev) => prev.filter((todo) => !todo.isCompleted));
     setShowCompleted(false);
+
+    showFlashNotice("", "success", {
+      icon: "↩",
+      title: `Cleared ${removed.length} completed ${removed.length === 1 ? "item" : "items"}`,
+      detail: "Completed items can be restored for the next few seconds.",
+      action: {
+        label: "Undo",
+        run: () => {
+          setTodos((prev) => {
+            const next = [...prev];
+            removed.forEach(({ todo, index }) => {
+              if (next.some((item) => item.id === todo.id)) return;
+              next.splice(Math.min(index, next.length), 0, todo);
+            });
+            return next;
+          });
+          setShowCompleted(true);
+        },
+      },
+    });
   };
 
   const exportLocalData = async () => {
@@ -2376,6 +2429,11 @@ function TodoWrapper() {
       setShowNotifyPanel(false);
       stopSound();
       stopAlarmNative();
+      closed = true;
+    }
+
+    if (showStartModeMenu) {
+      setShowStartModeMenu(false);
       closed = true;
     }
 
@@ -2611,6 +2669,7 @@ function TodoWrapper() {
   }, [
     todos,
     showNotifyPanel,
+    showStartModeMenu,
     quietOverlayOpen,
     openTagPickerId,
     focusedIndex,
@@ -2788,9 +2847,22 @@ function TodoWrapper() {
                 className="header-badges"
                 style={{ position: "relative", zIndex: 2147483400 }}
               >
-                <button type="button" className="badge badge-timer">
+                <span
+                  className="badge badge-timer"
+                  role="status"
+                  aria-label={
+                    isLocked
+                      ? `${headerRight} remaining`
+                      : `${remainingCount} items remaining`
+                  }
+                  title={
+                    isLocked
+                      ? `${headerRight} remaining`
+                      : `${remainingCount} items remaining`
+                  }
+                >
                   {headerRight}
-                </button>
+                </span>
 
                 {/* ✅ 🔔 Notification Panel */}
                 <button
@@ -2800,15 +2872,26 @@ function TodoWrapper() {
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={() => setShowNotifyPanel((v) => !v)}
                   aria-label="Notifications"
+                  aria-haspopup="dialog"
+                  aria-expanded={showNotifyPanel}
                   title={
                     notificationMode === "sound" ? "Sound mode" : "Quiet mode"
                   }
                 >
-                  {notificationMode === "sound" ? "🎵" : "💭"}
+                  {notificationMode === "sound" ? (
+                    <MdMusicNote aria-hidden="true" />
+                  ) : (
+                    <MdNotificationsNone aria-hidden="true" />
+                  )}
                 </button>
 
                 {showNotifyPanel && (
-                  <div className="sound-panel" ref={notifyPanelWrapRef}>
+                  <div
+                    className="sound-panel"
+                    ref={notifyPanelWrapRef}
+                    role="dialog"
+                    aria-label="Notification settings"
+                  >
                     <div className="sound-row">
                       <div className="sound-title">Notifications</div>
 
@@ -2837,9 +2920,11 @@ function TodoWrapper() {
                           notificationMode === "sound" ? "active" : ""
                         }`}
                         onClick={() => setNotificationMode("sound")}
+                        aria-pressed={notificationMode === "sound"}
                         title="Sound notification"
                       >
-                        🎵 Sound
+                        <MdMusicNote aria-hidden="true" />
+                        <span>Sound</span>
                       </button>
 
                       <button
@@ -2848,9 +2933,11 @@ function TodoWrapper() {
                           notificationMode === "quiet" ? "active" : ""
                         }`}
                         onClick={() => setNotificationMode("quiet")}
+                        aria-pressed={notificationMode === "quiet"}
                         title="Quiet notification"
                       >
-                        💭 Quiet
+                        <MdNotificationsNone aria-hidden="true" />
+                        <span>Quiet</span>
                       </button>
                     </div>
 
@@ -3004,26 +3091,65 @@ function TodoWrapper() {
             {/* One toolbar row: the "Now" label said nothing and the count
                 already lives in the header badge. */}
             <div className="now-bar-top">
-              <TipButton
-                className="mode-chip"
-                onClick={() =>
-                  setStartMode((m) => (m === "strict" ? "free" : "strict"))
-                }
-                ariaLabel="Start mode"
-                tip={
-                  startMode === "strict"
-                    ? "Strict: only the top task can start. Click for Free."
-                    : "Free: any task can start. Click for Strict."
-                }
-              >
-                {startMode === "strict" ? "Strict" : "Free"}
-              </TipButton>
+              <div className="start-mode-control" ref={startModeWrapRef}>
+                <button
+                  type="button"
+                  className={`mode-chip ${showStartModeMenu ? "active" : ""}`}
+                  onClick={() => setShowStartModeMenu((open) => !open)}
+                  aria-label="Choose start mode"
+                  aria-haspopup="menu"
+                  aria-expanded={showStartModeMenu}
+                >
+                  <span>{startMode === "strict" ? "Strict" : "Free"}</span>
+                  <MdExpandMore aria-hidden="true" />
+                </button>
+
+                {showStartModeMenu && (
+                  <div className="start-mode-menu" role="menu">
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={startMode === "free"}
+                      onClick={() => {
+                        setStartMode("free");
+                        setShowStartModeMenu(false);
+                      }}
+                    >
+                      <span className="start-mode-check">
+                        {startMode === "free" && <MdCheck />}
+                      </span>
+                      <span>
+                        <b>Free</b>
+                        <small>Start any task</small>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={startMode === "strict"}
+                      onClick={() => {
+                        setStartMode("strict");
+                        setShowStartModeMenu(false);
+                      }}
+                    >
+                      <span className="start-mode-check">
+                        {startMode === "strict" && <MdCheck />}
+                      </span>
+                      <span>
+                        <b>Strict</b>
+                        <small>Run tasks in order</small>
+                      </span>
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <div className="entry-filter-row inline">
                 <button
                   type="button"
                   className={`entry-filter-chip ${entryFilter === "all" ? "active" : ""}`}
                   onClick={() => setEntryFilter("all")}
+                  aria-pressed={entryFilter === "all"}
                 >
                   {entryAllLabel}
                 </button>
@@ -3031,6 +3157,7 @@ function TodoWrapper() {
                   type="button"
                   className={`entry-filter-chip ${entryFilter === "tasks" ? "active" : ""}`}
                   onClick={() => setEntryFilter("tasks")}
+                  aria-pressed={entryFilter === "tasks"}
                 >
                   Tasks
                 </button>
@@ -3038,6 +3165,7 @@ function TodoWrapper() {
                   type="button"
                   className={`entry-filter-chip ${entryFilter === "notes" ? "active" : ""}`}
                   onClick={() => setEntryFilter("notes")}
+                  aria-pressed={entryFilter === "notes"}
                 >
                   Notes
                 </button>
@@ -3055,8 +3183,9 @@ function TodoWrapper() {
                   }}
                   title="Filter tasks (⌘F)"
                   aria-label="Filter tasks"
+                  aria-pressed={searchOpen}
                 >
-                  ⌕
+                  <MdSearch aria-hidden="true" />
                 </button>
 
                 <button
@@ -3065,8 +3194,9 @@ function TodoWrapper() {
                   onClick={() => setShowTodaySummary((v) => !v)}
                   title="Show today summary"
                   aria-label="Show today summary"
+                  aria-pressed={showTodaySummary}
                 >
-                  ✓
+                  <MdInsights aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -3126,9 +3256,10 @@ function TodoWrapper() {
                         if (e.button !== 0) return;
                         startTagPointerDrag(t, e.clientX, e.clientY);
                       }}
-                      title={isAll ? "All (pinned)" : "Drag to reorder"}
+                      title={isAll ? "All tags (pinned)" : "Drag to reorder"}
+                      aria-pressed={activeTag === t}
                     >
-                      {t}
+                      {isAll ? "All tags" : t}
                     </button>
                   );
                 })}
@@ -3151,7 +3282,7 @@ function TodoWrapper() {
 
             <div className="now-list-wrap" ref={listWrapRef}>
               {visibleIncomplete.length === 0 ? (
-                <div className="now-empty">
+                <div className="now-empty" role="status">
                   <div className="now-empty-title">
                     {searchTerm
                       ? "No match"
@@ -3168,7 +3299,7 @@ function TodoWrapper() {
                   </div>
                 </div>
               ) : (
-                <div className="now-list" ref={listRef}>
+                <div className="now-list" ref={listRef} role="list">
                   {visibleIncomplete.map((todo, index) => {
                     const isActive = todo.id === activeId;
                     const canStart = canStartInCurrentMode(todo);
@@ -3216,13 +3347,16 @@ function TodoWrapper() {
             </div>
           </div>
 
-          <div className="completed-panel">
+          <div
+            className={`completed-panel ${showCompleted ? "is-expanded" : ""}`}
+          >
             <div className="completed-header">
               <button
                 className="collapse-btn"
                 onClick={() => setShowCompleted((v) => !v)}
                 disabled={visibleCompleted.length === 0}
                 aria-label="Toggle completed"
+                aria-expanded={showCompleted}
               >
                 <span>Completed</span>
                 <span className="collapse-btn-right">
@@ -3242,12 +3376,12 @@ function TodoWrapper() {
                 aria-label="Clear completed tasks"
                 title="Clear all completed tasks"
               >
-                <MdDeleteSweep size={12} />
+                <MdDeleteSweep size={14} />
               </button>
             </div>
 
             {showCompleted && visibleCompleted.length > 0 && (
-              <div className="completed-list">
+              <div className="completed-list" role="list">
                 {visibleCompleted.map((todo) => (
                   <Todo
                     key={todo.id}

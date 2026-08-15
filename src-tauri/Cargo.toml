@@ -1,6 +1,6 @@
 [package]
 name = "yc-todo"
-version = "0.1.2"
+version = "0.2.0"
 description = "A focused macOS menu bar task manager"
 authors = ["Yichen Lin"]
 publish = false

@@ -65,4 +65,20 @@ if (updatedCargo === cargo) {
 }
 
 fs.writeFileSync(cargoPath, updatedCargo);
+
+const cargoLockPath = "src-tauri/Cargo.lock";
+if (fs.existsSync(cargoLockPath)) {
+  const cargoLock = fs.readFileSync(cargoLockPath, "utf8");
+  const updatedCargoLock = cargoLock.replace(
+    /(\[\[package\]\]\nname = "yc-todo"\nversion = ")[^"]+("\n)/,
+    `$1${newVersion}$2`,
+  );
+
+  if (updatedCargoLock === cargoLock) {
+    throw new Error(`Could not update yc-todo in ${cargoLockPath}`);
+  }
+
+  fs.writeFileSync(cargoLockPath, updatedCargoLock);
+}
+
 console.log(`YC Todo: ${oldVersion} → ${newVersion}`);

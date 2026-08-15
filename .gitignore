@@ -4,6 +4,7 @@ dist/
 dist-ssr/
 src-tauri/target/
 src-tauri/gen/
+release/
 
 # Local environment and logs
 *.local

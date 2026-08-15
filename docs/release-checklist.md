@@ -1,35 +1,69 @@
 # Release checklist
 
-## Before any public repository publication
+## Version and source
 
-- Choose and add the intended source-code license.
-- Review README and privacy language against the shipping build.
-- Confirm that no `.env`, credentials, signing files, or local task records are
-  tracked.
-
-## Before a signed macOS or App Store build
-
+- Confirm `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`,
+  `src-tauri/Cargo.toml`, and the local `yc-todo` entry in `Cargo.lock` use the
+  same version.
+- Confirm the tag is exactly `v<version>` and does not already exist locally or
+  on `origin`.
 - Run `npm ci` and `npm run verify` from a clean checkout.
-- Run `npm run tauri build` with the intended signing environment.
-- Confirm both the native popover and its full-size content area are 386 x 546.
-  A 360 x 520 full-size popover shrinks the whole interface; a 386 x 546
-  non-full-size popover adds an unwanted 13-point inset and still crowds the
-  content.
-- Validate task creation, focus timing, global shortcuts, tray/popover behavior,
-  custom sound selection, data import, and data export in the signed build.
-- Resolve the sandbox entitlement decision for JSON export. The current source
-  retains the historical user-selected read-only entitlement; Apple documents
-  `com.apple.security.files.user-selected.read-write` for writing files chosen
-  through Open or Save dialogs:
-  https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.files.user-selected.read-write
-- Confirm version parity across `package.json`, `src-tauri/tauri.conf.json`, and
-  `src-tauri/Cargo.toml`.
-- Confirm the App Store description, screenshots, privacy answers, signing,
-  notarization, and bundle identifier.
+- Review the diff for local tasks, credentials, `.env` files, signing files,
+  generated output, and unrelated changes before committing.
+- Review README, release notes, changelog, and privacy claims against the tagged
+  build.
 
-An unsigned local bundle may launch for development but is not a distribution
-artifact. `codesign --verify --deep --strict` is expected to pass only after the
-intended Apple signing step.
+## Universal artifact
 
-Tauri's current distribution commands and signing overview are documented at
-https://v2.tauri.app/distribute/.
+- Install both Rust targets:
+  `rustup target add aarch64-apple-darwin x86_64-apple-darwin`.
+- Run `npm run release:macos`.
+- Confirm `lipo -archs` reports both `arm64` and `x86_64` for
+  `YC Todo.app/Contents/MacOS/yc-todo`.
+- Confirm `codesign --verify --deep --strict` passes.
+- Confirm the ZIP expands into one `YC Todo.app`, launches on macOS, and retains
+  the `com.yichen.yc.todo` bundle identifier.
+- Verify the SHA-256 file against the final ZIP.
+
+## Product regression
+
+- Confirm the native popover and its full-size content area are 386×546.
+- Validate task/note creation, progressive actions, long-title preview, focus
+  timing, Free/Strict mode, global shortcuts, tray/popover behavior, custom
+  sound selection, JSON import/export, Completed Undo, light/dark appearance,
+  and keyboard navigation in the release build.
+- Confirm existing tasks and settings survive upgrading from the previous
+  installed version.
+- Confirm all public screenshots use neutral demo data and match the shipping UI.
+
+## GitHub Release
+
+- Push the release commit before the tag.
+- Push the annotated `v<version>` tag after the release commit is on `main`.
+- Create the matching GitHub Release from that tag and upload the locally
+  verified ZIP and checksum without rebuilding or renaming them.
+- Confirm the GitHub Release is not a draft and contains exactly:
+  `YC-Todo-macOS-universal.zip` and its `.sha256` file.
+- Download the GitHub-hosted ZIP, verify its checksum, and perform a clean
+  `/Applications` install before marking the release complete.
+- Confirm the README latest-download URL resolves to the new archive.
+
+## Signing and App Store boundaries
+
+The default GitHub build is ad-hoc signed and not notarized. It requires
+Control-click → Open. A normal public Developer ID distribution additionally
+requires an installed `Developer ID Application` identity and Apple notarization
+credentials; Tauri documents both at
+https://v2.tauri.app/distribute/sign/macos/.
+
+Do not pass the historical `src-tauri/entitlements.plist` to a public signing
+identity without a separate review. It enables App Sandbox, prevents the current
+WebKit child process from loading in local signed testing, and grants only
+user-selected read access even though JSON export writes a file. Apple documents
+the writable entitlement at
+https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.files.user-selected.read-write.
+
+App Store submission is a separate path: review sandbox permissions, sign the
+`.app` and `.pkg` with the appropriate Apple identities, prepare App Store
+screenshots/privacy answers, notarize or upload, and repeat the full regression
+check. Do not treat the GitHub ZIP as an App Store artifact.

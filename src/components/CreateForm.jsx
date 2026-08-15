@@ -95,11 +95,12 @@ function CreateForm({
         <input
           ref={inputRef}
           type="text"
-          placeholder="Add a task…"
+          placeholder={entryType === "task" ? "Add a task…" : "Add a note…"}
           value={task}
           onChange={(e) => setTask(e.target.value)}
           disabled={isLocked}
           autoFocus
+          aria-label={entryType === "task" ? "Task title" : "Note text"}
           onKeyDown={(e) => {
             if (e.key !== "Enter") return;
             if (e.isComposing) return;
@@ -132,12 +133,13 @@ function CreateForm({
           tagColors={tagColors}
         />
 
-        <div className="entry-type-switch" role="tablist" aria-label="Entry type">
+        <div className="entry-type-switch" role="group" aria-label="Entry type">
           <button
             type="button"
             className={`entry-type-btn ${entryType === "task" ? "active" : ""}`}
             onClick={() => setEntryType("task")}
             disabled={isLocked}
+            aria-pressed={entryType === "task"}
           >
             Task
           </button>
@@ -146,6 +148,7 @@ function CreateForm({
             className={`entry-type-btn ${entryType === "note" ? "active" : ""}`}
             onClick={() => setEntryType("note")}
             disabled={isLocked}
+            aria-pressed={entryType === "note"}
           >
             Note
           </button>

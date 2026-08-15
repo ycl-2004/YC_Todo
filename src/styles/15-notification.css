@@ -200,15 +200,25 @@
   background: var(--surface-1);
   color: var(--ink);
 
-  font-weight: 900;
+  font-weight: 700;
   font-size: 12px;
 
   cursor: pointer;
   padding: 0 10px;
 
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+
   transition:
     transform 120ms var(--ease),
     filter 120ms var(--ease);
+}
+
+.notif-mode-btn svg {
+  width: 15px;
+  height: 15px;
 }
 
 .notif-mode-btn:hover {

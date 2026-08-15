@@ -28,10 +28,12 @@
   --shadow-md: 0 12px 26px rgba(0, 0, 0, 0.12);
   --shadow-sm: 0 8px 18px rgba(0, 0, 0, 0.08);
 
-  --radius-md: 14px;
-  --radius-lg: 18px;
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --todo-row-gap: 10px;
+  --todo-row-gap: 8px;
 
   /* ✅ Neutral base for LIGHT (更白一點) */
   --base1: rgba(248, 249, 255, 0.98);

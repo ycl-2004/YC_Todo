@@ -9,13 +9,13 @@
   position: fixed;
   z-index: 2147483000;
 
-  border-radius: 14px;
-  border: 1px solid var(--layer-border);
-  background: var(--layer-bg);
-  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--layer-border) 72%, transparent);
+  background: color-mix(in srgb, var(--layer-bg) 96%, white 4%);
+  box-shadow: 0 8px 24px rgba(58, 40, 54, 0.14);
 
-  backdrop-filter: blur(12px) saturate(1.08);
-  -webkit-backdrop-filter: blur(12px) saturate(1.08);
+  backdrop-filter: blur(8px) saturate(1.04);
+  -webkit-backdrop-filter: blur(8px) saturate(1.04);
 
   color: var(--ink);
   pointer-events: none;
@@ -43,11 +43,39 @@
      Long-text preview
   ----------------------------- */
 .hover-card.preview {
+  position: fixed;
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  overflow: hidden;
+  gap: 6px;
+  overflow: visible;
+
+  border-left: 2px solid var(--preview-accent, var(--accent));
+}
+
+.hover-card.preview::after {
+  content: "";
+  position: absolute;
+  left: var(--hover-arrow-left, 42px);
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  background: color-mix(in srgb, var(--layer-bg) 96%, white 4%);
+  pointer-events: none;
+}
+
+.hover-card.preview.place-up::after {
+  bottom: -5px;
+  border-right: 1px solid color-mix(in srgb, var(--layer-border) 72%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--layer-border) 72%, transparent);
+  transform: rotate(45deg);
+}
+
+.hover-card.preview:not(.place-up)::after {
+  top: -5px;
+  border-left: 1px solid color-mix(in srgb, var(--layer-border) 72%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--layer-border) 72%, transparent);
+  transform: rotate(45deg);
 }
 
 .hover-card-text {
@@ -55,7 +83,7 @@
   min-height: 0;
 
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.45;
   font-weight: 500;
   color: var(--ink);
 
@@ -78,14 +106,24 @@
   gap: 6px;
   flex-wrap: wrap;
 
-  padding-top: 6px;
-  border-top: 1px solid color-mix(in srgb, var(--card-border) 55%, transparent);
-
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
+  font-weight: 550;
+  letter-spacing: 0.1px;
   color: var(--muted);
+}
+
+.hover-card-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hover-card-tag i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--preview-accent, var(--accent));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--preview-accent, var(--accent)) 58%, white 42%);
 }
 
 .hover-card-meta span:not(:last-child)::after {
@@ -106,6 +144,15 @@
   line-height: 1.4;
   color: var(--ink);
   text-align: center;
+}
+
+:root[data-theme="dark"] .hover-card {
+  background: color-mix(in srgb, var(--layer-bg) 96%, black 4%);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme="dark"] .hover-card.preview::after {
+  background: color-mix(in srgb, var(--layer-bg) 96%, black 4%);
 }
 
 @media (prefers-reduced-motion: reduce) {
