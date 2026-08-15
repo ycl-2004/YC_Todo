@@ -1,21 +1,23 @@
 /* ============================================================
    13) Drag Reorder
    ============================================================ */
+/* Just the number. The boxed chip read as a control the user could press,
+   cost 10px of title width, and added a hard edge to every row. */
 .todo .drag-handle {
-  width: 26px;
-  height: 26px;
-  border-radius: 10px;
+  flex: 0 0 auto;
+  width: 14px;
 
   display: inline-flex;
   align-items: center;
   justify-content: center;
 
-  font-weight: 800;
+  font-weight: 600;
   font-size: 12px;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 
-  background: var(--surface-1);
-  border: 1px solid var(--card-border);
+  background: transparent;
+  border: none;
   color: var(--muted);
 
   user-select: none;
@@ -23,18 +25,16 @@
   -webkit-touch-callout: none;
 
   cursor: grab;
-  opacity: 0.8;
+  opacity: 0.75;
 
   transition:
-    transform 120ms var(--ease),
-    filter 120ms var(--ease),
+    color 120ms var(--ease),
     opacity 120ms var(--ease);
 }
 
 .todo:not(.locked) .drag-handle:hover {
   opacity: 1;
-  filter: brightness(1.06);
-  transform: translateY(-1px);
+  color: var(--ink);
 }
 
 .todo:not(.locked) .drag-handle:active {

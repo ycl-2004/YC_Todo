@@ -8,6 +8,8 @@ import {
   MdCheckCircle,
 } from "react-icons/md";
 import EditForm from "./EditForm.jsx";
+import HoverCard, { useHoverIntent } from "./HoverCard.jsx";
+import TipButton from "./TipButton.jsx";
 
 function Todo({
   todo,
@@ -27,9 +29,13 @@ function Todo({
   onStart,
   onPause,
   onFinish,
+  onBlockedStart,
   isTagPickerOpen,
   onToggleTagPicker,
   onCloseTagPicker,
+  isKeyboardFocused = false,
+  isNoteExpanded = false,
+  onToggleNoteExpanded,
 
   // Pointer-drag reorder
   onPointerDragStart,
@@ -38,8 +44,19 @@ function Todo({
   const tagBtnRef = useRef(null);
   const tagPickerRef = useRef(null);
 
+  const textRef = useRef(null);
+  const noteDownRef = useRef(null);
+
   const [openUp, setOpenUp] = useState(false);
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0, width: 88 });
+
+  const isNote = todo.type === "note";
+
+  const preview = useHoverIntent({
+    enabled: !todo.isEditing && !isTagPickerOpen && !(isNote && isNoteExpanded),
+    openDelay: 380,
+    closeDelay: 120,
+  });
 
   const tagOptions = useMemo(() => {
     const base = Array.isArray(tags) ? tags : [];
@@ -84,7 +101,7 @@ function Todo({
       const gap = 6;
       const popW = 88;
       const itemH = 24;
-      const popH = Math.min(6 + tagOptions.length * itemH, 126);
+      const popH = Math.min(6 + tagOptions.length * itemH, 160);
 
       const boundBottom = listRect ? listRect.bottom : vh;
       const boundTop = listRect ? listRect.top : 8;
@@ -140,10 +157,32 @@ function Todo({
 
   const disableRow = isLocked && !isActive;
   const isRunning = isActive && status === "running";
-  const isNote = todo.type === "note";
   const canEditTag =
     !todo.isCompleted && typeof onToggleTagPicker === "function";
   const canDrag = !isLocked && !todo.isCompleted;
+
+  /* Only offer the preview when the text is actually cut off, otherwise
+     every row would pop a card while scanning the list. */
+  const handleTextEnter = () => {
+    const el = textRef.current;
+    if (!el) return;
+
+    const truncated =
+      el.scrollWidth > el.clientWidth + 1 ||
+      el.scrollHeight > el.clientHeight + 1;
+
+    if (truncated) preview.show();
+  };
+
+  const handleNoteClick = (e) => {
+    const down = noteDownRef.current;
+    noteDownRef.current = null;
+    if (!isNote) return;
+    // Ignore the click that ends a reorder drag.
+    if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
+    preview.hideNow();
+    onToggleNoteExpanded?.(todo.id);
+  };
 
   const tagPickerPopover =
     canEditTag && isTagPickerOpen
@@ -184,11 +223,21 @@ function Todo({
   return (
     <>
       <div
-        className={`todo ${todo.isCompleted ? "completed" : ""} ${
-          disableRow ? "locked" : ""
-        } ${isTagPickerOpen ? "tag-picker-open" : ""}`}
+        className={[
+          "todo",
+          todo.isCompleted ? "completed" : "",
+          disableRow ? "locked" : "",
+          isTagPickerOpen ? "tag-picker-open" : "",
+          isActive ? "is-active" : "",
+          isNote ? "is-note" : "",
+          isNote && isNoteExpanded ? "note-expanded" : "",
+          isKeyboardFocused ? "kb-focused" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
         data-todo-id={String(todo.id)}
         onPointerDown={(e) => {
+          noteDownRef.current = { x: e.clientX, y: e.clientY };
           if (!canDrag) return;
           if (e.button !== 0) return;
 
@@ -202,6 +251,7 @@ function Todo({
             return;
           }
 
+          preview.hideNow();
           e.preventDefault();
           onPointerDragStart?.(todo.id, e.clientX, e.clientY);
         }}
@@ -221,10 +271,24 @@ function Todo({
             disabled={isNote || disableRow || isLocked}
           />
 
-          <div className="todo-main">
-            <span className="todo-text" title={todo.content}>
+          <div className="todo-main" onClick={handleNoteClick}>
+            <span
+              className="todo-text"
+              ref={textRef}
+              tabIndex={-1}
+              onPointerEnter={handleTextEnter}
+              onPointerLeave={preview.hide}
+              onFocus={handleTextEnter}
+              onBlur={preview.hideNow}
+            >
               {todo.content}
             </span>
+
+            {isNote && (
+              <span className="todo-note-toggle" aria-hidden="true">
+                ▶
+              </span>
+            )}
           </div>
         </div>
 
@@ -264,72 +328,93 @@ function Todo({
           <div className="todo-actions">
             {!isNote && isActive ? (
               <>
-                <button
+                <TipButton
                   className="icon-btn"
                   onClick={isRunning ? onPause : onStart}
-                  aria-label={isRunning ? "Pause" : "Start"}
-                  title={isRunning ? "Pause" : "Start"}
+                  ariaLabel={isRunning ? "Pause" : "Start"}
+                  tip={isRunning ? "Pause" : "Start"}
                 >
                   {isRunning ? <MdPause /> : <MdPlayArrow />}
-                </button>
+                </TipButton>
 
-                <button
+                <TipButton
                   className="icon-btn ok"
                   onClick={onFinish}
-                  aria-label="Finish"
-                  title="Finish"
+                  ariaLabel="Finish"
+                  tip="Finish now"
                 >
                   <MdCheckCircle />
-                </button>
+                </TipButton>
               </>
             ) : !isNote ? (
-              <button
+              <TipButton
                 className="icon-btn"
-                onClick={onStart}
-                aria-label="Start"
-                title={
-                  canStart ? "Start" : "Start (only the next task in order)"
+                onClick={() => (canStart ? onStart() : onBlockedStart?.(todo))}
+                ariaLabel="Start"
+                softDisabled={!canStart}
+                tip={
+                  canStart
+                    ? "Start"
+                    : "Strict mode runs tasks in order — click to see which one is next"
                 }
-                disabled={!canStart}
               >
                 <MdPlayArrow />
-              </button>
+              </TipButton>
             ) : (
               <span className="icon-btn placeholder" aria-hidden="true" />
             )}
 
-            <button
-              className="icon-btn"
+            <TipButton
+              className="icon-btn secondary"
               onPointerDown={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 toggleIsEditing(todo.id);
               }}
-              aria-label="Edit"
-              title="Edit"
+              ariaLabel="Edit"
+              tip="Edit"
               disabled={isLocked}
             >
               <MdEdit />
-            </button>
+            </TipButton>
 
-            <button
-              className="icon-btn danger"
+            <TipButton
+              className="icon-btn danger secondary"
               onPointerDown={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 deleteTodo(todo.id);
               }}
-              aria-label="Delete"
-              title="Delete"
+              ariaLabel="Delete"
+              tip="Delete"
               disabled={isLocked}
             >
               <MdDelete />
-            </button>
+            </TipButton>
           </div>
         </div>
       </div>
+
+      <HoverCard
+        anchorRef={textRef}
+        open={preview.open}
+        className="preview"
+        boundsSelector=".menu-card"
+        interactive
+        onRequestClose={preview.hideNow}
+        onPointerEnter={preview.show}
+        onPointerLeave={preview.hide}
+      >
+        <div className="hover-card-text">{todo.content}</div>
+        <div className="hover-card-meta">
+          <span>{todo.tag}</span>
+          <span>{isNote ? "Note" : `${todo.minutes}m`}</span>
+          {!hideOrder && !todo.isCompleted && <span>#{order}</span>}
+        </div>
+      </HoverCard>
+
       {tagPickerPopover}
     </>
   );

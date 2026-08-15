@@ -7,6 +7,7 @@ import { readFile, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { listen } from "@tauri-apps/api/event";
 import { MdDeleteSweep } from "react-icons/md";
 import TagManager from "./TagManager";
+import TipButton from "./TipButton.jsx";
 
 const STORAGE_KEY = "menubar_todo_v1";
 const STORAGE_BACKUP_KEY = "menubar_todo_v1_backup";
@@ -219,6 +220,15 @@ function isPathWithinAllowedDirs(path, allowedDirs) {
 function getFlashNoticeMeta(notice) {
   const message = String(notice?.message || "");
   const lowered = message.toLowerCase();
+
+  // Callers may spell out their own copy instead of being pattern-matched.
+  if (notice?.title) {
+    return {
+      icon: notice.icon ?? "✓",
+      title: notice.title,
+      detail: notice.detail ?? message,
+    };
+  }
 
   if (lowered.includes("data imported successfully")) {
     return {
@@ -604,6 +614,27 @@ function TodoWrapper() {
   };
 
   // -----------------------------
+  // Search, keyboard navigation, expanded notes, scroll affordances
+  // (declared before the derived lists, which read `searchOpen`)
+  // -----------------------------
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [expandedNoteIds, setExpandedNoteIds] = useState(() => new Set());
+  const listWrapRef = useRef(null);
+  const listRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  const toggleNoteExpanded = (id) => {
+    setExpandedNoteIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // -----------------------------
   // Derived lists
   // -----------------------------
   const normalizedTodos = useMemo(
@@ -636,7 +667,7 @@ function TodoWrapper() {
     return allCompleted.filter((t) => t.tag === activeTag);
   }, [allCompleted, activeTag]);
 
-  const visibleIncomplete = useMemo(() => {
+  const visibleIncompleteUnsearched = useMemo(() => {
     if (entryFilter === "tasks") {
       return visibleIncompleteRaw.filter((t) => t.type === "task");
     }
@@ -645,6 +676,17 @@ function TodoWrapper() {
     }
     return visibleIncompleteRaw;
   }, [visibleIncompleteRaw, entryFilter]);
+
+  const searchTerm = searchOpen ? searchQuery.trim().toLowerCase() : "";
+
+  const visibleIncomplete = useMemo(() => {
+    if (!searchTerm) return visibleIncompleteUnsearched;
+    return visibleIncompleteUnsearched.filter((t) =>
+      String(t.content ?? "")
+        .toLowerCase()
+        .includes(searchTerm),
+    );
+  }, [visibleIncompleteUnsearched, searchTerm]);
 
   const visibleCompleted = useMemo(() => {
     if (entryFilter === "notes") return [];
@@ -678,13 +720,9 @@ function TodoWrapper() {
     return `Running: ${name}-${tag}`;
   }, [status, activeTodo]);
 
-  const remainingCount = visibleIncomplete.length;
-  const remainingLabel =
-    entryFilter === "tasks"
-      ? "TASKS REMAINING"
-      : entryFilter === "notes"
-        ? "NOTES REMAINING"
-        : "REMAINING";
+  /* Counted before the search filter, so searching never looks like tasks
+     disappeared. */
+  const remainingCount = visibleIncompleteUnsearched.length;
   const entryAllLabel = activeTag === "All" ? "Everything" : activeTag;
 
   // -----------------------------
@@ -931,8 +969,8 @@ function TodoWrapper() {
     }
   };
 
-  const showFlashNotice = (message, tone = "success") => {
-    setFlashNotice({ id: Date.now(), message, tone });
+  const showFlashNotice = (message, tone = "success", options = {}) => {
+    setFlashNotice({ id: Date.now(), message, tone, ...options });
   };
 
   const dismissFlashNotice = () => {
@@ -1922,7 +1960,30 @@ function TodoWrapper() {
 
   const deleteTodo = (id) => {
     if (isLocked) return;
+
+    const index = todos.findIndex((todo) => todo.id === id);
+    if (index === -1) return;
+    const removed = todos[index];
+
     setTodos((prev) => prev.filter((todo) => todo.id !== id));
+
+    /* The delete button is small and sits next to edit, so the delete has to
+       be reversible rather than guarded by a confirm dialog. */
+    showFlashNotice("", "success", {
+      icon: "🗑",
+      title: "Deleted",
+      detail: removed.content,
+      action: {
+        label: "Undo",
+        run: () =>
+          setTodos((prev) => {
+            if (prev.some((t) => t.id === removed.id)) return prev;
+            const next = [...prev];
+            next.splice(Math.min(index, next.length), 0, removed);
+            return next;
+          }),
+      },
+    });
   };
 
   const toggleComplete = (id) => {
@@ -2344,6 +2405,172 @@ function TodoWrapper() {
     return `${remainingCount}`;
   }, [isLocked, activeId, remainingSec, remainingCount]);
 
+  const handleBlockedStart = () => {
+    const next = visibleStartableTasks[0];
+    showFlashNotice("", "success", {
+      icon: "↑",
+      title: "Strict mode",
+      detail: next
+        ? `“${next.content}” runs first. Switch to Free mode to start any task.`
+        : "Switch to Free mode to start any task.",
+    });
+  };
+
+  // -----------------------------
+  // Keyboard: ⌘F filter + list navigation
+  // -----------------------------
+  useEffect(() => {
+    if (searchOpen) {
+      const id = window.requestAnimationFrame(() =>
+        searchInputRef.current?.focus(),
+      );
+      return () => window.cancelAnimationFrame(id);
+    }
+  }, [searchOpen]);
+
+  useEffect(() => {
+    if (focusedIndex >= visibleIncomplete.length) {
+      setFocusedIndex(visibleIncomplete.length - 1);
+    }
+  }, [visibleIncomplete.length, focusedIndex]);
+
+  useEffect(() => {
+    if (focusedIndex < 0) return;
+    listRef.current?.children?.[focusedIndex]?.scrollIntoView?.({
+      block: "nearest",
+    });
+  }, [focusedIndex]);
+
+  useEffect(() => {
+    const isTypingTarget = (t) =>
+      Boolean(
+        t &&
+          (t.tagName === "INPUT" ||
+            t.tagName === "TEXTAREA" ||
+            t.tagName === "SELECT" ||
+            t.isContentEditable),
+      );
+
+    const onKey = (e) => {
+      if (e.isComposing) return;
+      if (quietOverlayOpen || shortcutCapture.open) return;
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        e.stopPropagation();
+        setSearchOpen((open) => {
+          if (open) setSearchQuery("");
+          return !open;
+        });
+        return;
+      }
+
+      if (e.key === "Escape" && searchOpen) {
+        e.preventDefault();
+        e.stopPropagation();
+        setSearchQuery("");
+        setSearchOpen(false);
+        setFocusedIndex(-1);
+        return;
+      }
+
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const typing = isTypingTarget(e.target);
+      const list = visibleIncomplete;
+
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        if (!list.length) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setFocusedIndex((i) => {
+          if (i < 0) return e.key === "ArrowDown" ? 0 : list.length - 1;
+          const step = e.key === "ArrowDown" ? 1 : -1;
+          return Math.min(list.length - 1, Math.max(0, i + step));
+        });
+        return;
+      }
+
+      if (typing) return;
+      if (todos.some((x) => x.isEditing)) return;
+
+      const target = list[focusedIndex];
+      if (!target) return;
+
+      if (e.key === " ") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (target.type !== "note") toggleComplete(target.id);
+        return;
+      }
+
+      if (e.key.toLowerCase() === "e") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isLocked) toggleIsEditing(target.id);
+        return;
+      }
+
+      if (e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        e.stopPropagation();
+        deleteTodo(target.id);
+        return;
+      }
+
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (target.type === "note") {
+          toggleNoteExpanded(target.id);
+        } else if (canStartInCurrentMode(target)) {
+          startTodo(target);
+        } else {
+          handleBlockedStart();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [
+    visibleIncomplete,
+    focusedIndex,
+    searchOpen,
+    quietOverlayOpen,
+    shortcutCapture.open,
+    isLocked,
+    todos,
+  ]);
+
+  // -----------------------------
+  // Scroll affordance for the hidden-scrollbar list
+  // -----------------------------
+  useEffect(() => {
+    const el = listRef.current;
+    const wrap = listWrapRef.current;
+    if (!el || !wrap) return;
+
+    const update = () => {
+      wrap.classList.toggle("can-scroll-up", el.scrollTop > 2);
+      wrap.classList.toggle(
+        "can-scroll-down",
+        el.scrollTop + el.clientHeight < el.scrollHeight - 2,
+      );
+    };
+
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+
+    return () => {
+      el.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [visibleIncomplete.length, searchOpen, expandedNoteIds]);
+
   // -----------------------------
   // Global: Enter to hide popover (home page)
   // -----------------------------
@@ -2353,6 +2580,9 @@ function TodoWrapper() {
       if (e.key !== "Enter") return;
       if (e.isComposing) return;
       if (e.metaKey || e.shiftKey || e.altKey || e.ctrlKey) return;
+
+      // A keyboard-focused row owns Enter (start / expand).
+      if (focusedIndex >= 0 && focusedIndex < visibleIncomplete.length) return;
 
       const t = e.target;
       const isTyping =
@@ -2378,7 +2608,14 @@ function TodoWrapper() {
 
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [todos, showNotifyPanel, quietOverlayOpen, openTagPickerId]);
+  }, [
+    todos,
+    showNotifyPanel,
+    quietOverlayOpen,
+    openTagPickerId,
+    focusedIndex,
+    visibleIncomplete.length,
+  ]);
 
   return (
     <>
@@ -2395,6 +2632,20 @@ function TodoWrapper() {
               {getFlashNoticeMeta(flashNotice).detail}
             </div>
           </div>
+
+          {flashNotice.action && (
+            <button
+              type="button"
+              className="flash-notice-action"
+              onClick={() => {
+                flashNotice.action.run?.();
+                dismissFlashNotice();
+              }}
+            >
+              {flashNotice.action.label}
+            </button>
+          )}
+
           <button
             type="button"
             className="flash-notice-close"
@@ -2750,40 +3001,23 @@ function TodoWrapper() {
           />
 
           <div className="now-bar">
+            {/* One toolbar row: the "Now" label said nothing and the count
+                already lives in the header badge. */}
             <div className="now-bar-top">
-              <span className="now-title">Now</span>
-              <div className="now-top-right">
-                <button
-                  type="button"
-                  className={`stats-toggle ${showTodaySummary ? "active" : ""}`}
-                  onClick={() => setShowTodaySummary((v) => !v)}
-                  title="Show today summary"
-                  aria-label="Show today summary"
-                >
-                  ✓
-                </button>
-
-                <span className="remaining-chip">
-                  <b>{remainingCount}</b> <span>{remainingLabel}</span>
-                </span>
-              </div>
-            </div>
-
-            <div className="now-bar-bottom">
-              <button
-                type="button"
+              <TipButton
                 className="mode-chip"
                 onClick={() =>
                   setStartMode((m) => (m === "strict" ? "free" : "strict"))
                 }
-                title={
+                ariaLabel="Start mode"
+                tip={
                   startMode === "strict"
-                    ? "Strict mode: only top task can start"
-                    : "Free mode: any task can start"
+                    ? "Strict: only the top task can start. Click for Free."
+                    : "Free: any task can start. Click for Strict."
                 }
               >
-                {startMode === "strict" ? "Mode: Strict" : "Mode: Free"}
-              </button>
+                {startMode === "strict" ? "Strict" : "Free"}
+              </TipButton>
 
               <div className="entry-filter-row inline">
                 <button
@@ -2809,10 +3043,56 @@ function TodoWrapper() {
                 </button>
               </div>
 
-              {runningLabel && (
-                <span className="running-chip">{runningLabel}</span>
-              )}
+              <div className="now-top-right">
+                <button
+                  type="button"
+                  className={`stats-toggle ${searchOpen ? "active" : ""}`}
+                  onClick={() => {
+                    setSearchOpen((open) => {
+                      if (open) setSearchQuery("");
+                      return !open;
+                    });
+                  }}
+                  title="Filter tasks (⌘F)"
+                  aria-label="Filter tasks"
+                >
+                  ⌕
+                </button>
+
+                <button
+                  type="button"
+                  className={`stats-toggle ${showTodaySummary ? "active" : ""}`}
+                  onClick={() => setShowTodaySummary((v) => !v)}
+                  title="Show today summary"
+                  aria-label="Show today summary"
+                >
+                  ✓
+                </button>
+              </div>
             </div>
+
+            {searchOpen && (
+              <div className="now-search">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={searchQuery}
+                  placeholder="Filter tasks…"
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  aria-label="Filter tasks"
+                />
+                <span className="now-search-count">
+                  {visibleIncomplete.length}/{visibleIncompleteUnsearched.length}
+                </span>
+              </div>
+            )}
+
+            {runningLabel && (
+              <div className="now-bar-bottom">
+                <span className="running-chip">{runningLabel}</span>
+              </div>
+            )}
+
             {showTodaySummary && (
               <div className="today-stats-inline">
                 <span className="today-stats-text">
@@ -2869,45 +3149,70 @@ function TodoWrapper() {
               </div>
             </div>
 
-            <div className="now-list">
-              {visibleIncomplete.map((todo, index) => {
-                const isActive = todo.id === activeId;
-                const canStart = canStartInCurrentMode(todo);
+            <div className="now-list-wrap" ref={listWrapRef}>
+              {visibleIncomplete.length === 0 ? (
+                <div className="now-empty">
+                  <div className="now-empty-title">
+                    {searchTerm
+                      ? "No match"
+                      : entryFilter === "notes"
+                        ? "No notes here"
+                        : "Nothing queued"}
+                  </div>
+                  <div className="now-empty-hint">
+                    {searchTerm
+                      ? `Nothing in this list contains “${searchQuery.trim()}”.`
+                      : activeTag === "All"
+                        ? "Add a task above to get started."
+                        : `No open items tagged ${activeTag}.`}
+                  </div>
+                </div>
+              ) : (
+                <div className="now-list" ref={listRef}>
+                  {visibleIncomplete.map((todo, index) => {
+                    const isActive = todo.id === activeId;
+                    const canStart = canStartInCurrentMode(todo);
 
-                return (
-                  <Todo
-                    key={todo.id}
-                    todo={todo}
-                    order={index + 1}
-                    tags={tags}
-                    tagColors={tagColors}
-                    deleteTodo={deleteTodo}
-                    toggleComplete={toggleComplete}
-                    toggleIsEditing={toggleIsEditing}
-                    editTodo={editTodo}
-                    onChangeTag={changeTodoTag}
-                    isLocked={isLocked}
-                    isActive={isActive}
-                    canStart={canStart}
-                    status={status}
-                    onStart={() => {
-                      if (!isActive) return startTodo(todo);
-                      if (status === "running") return pauseActive();
-                      if (status === "paused") return resumeActive();
-                    }}
-                    onPause={pauseActive}
-                    onFinish={() => finishActive(false)}
-                    onPointerDragStart={startPointerDrag}
-                    isTagPickerOpen={openTagPickerId === todo.id}
-                    onToggleTagPicker={() =>
-                      setOpenTagPickerId((prev) =>
-                        prev === todo.id ? null : todo.id,
-                      )
-                    }
-                    onCloseTagPicker={() => setOpenTagPickerId(null)}
-                  />
-                );
-              })}
+                    return (
+                      <Todo
+                        key={todo.id}
+                        todo={todo}
+                        order={index + 1}
+                        tags={tags}
+                        tagColors={tagColors}
+                        deleteTodo={deleteTodo}
+                        toggleComplete={toggleComplete}
+                        toggleIsEditing={toggleIsEditing}
+                        editTodo={editTodo}
+                        onChangeTag={changeTodoTag}
+                        isLocked={isLocked}
+                        isActive={isActive}
+                        canStart={canStart}
+                        status={status}
+                        onStart={() => {
+                          if (!isActive) return startTodo(todo);
+                          if (status === "running") return pauseActive();
+                          if (status === "paused") return resumeActive();
+                        }}
+                        onPause={pauseActive}
+                        onFinish={() => finishActive(false)}
+                        onBlockedStart={handleBlockedStart}
+                        onPointerDragStart={startPointerDrag}
+                        isKeyboardFocused={focusedIndex === index}
+                        isNoteExpanded={expandedNoteIds.has(todo.id)}
+                        onToggleNoteExpanded={toggleNoteExpanded}
+                        isTagPickerOpen={openTagPickerId === todo.id}
+                        onToggleTagPicker={() =>
+                          setOpenTagPickerId((prev) =>
+                            prev === todo.id ? null : todo.id,
+                          )
+                        }
+                        onCloseTagPicker={() => setOpenTagPickerId(null)}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -2976,34 +3281,37 @@ function TodoWrapper() {
           </div>
         </div>
 
-        <div className="footer-bar">
-          <button
-            className="btn ghost"
-            disabled={!isLocked || status !== "running"}
-            onClick={pauseActive}
-          >
-            Pause
-          </button>
-          <button
-            className="btn ghost"
-            disabled={!isLocked || status !== "paused"}
-            onClick={resumeActive}
-          >
-            Resume
-          </button>
+        {/* Run controls only exist while something is running; otherwise this
+            bar was 60px of permanently greyed-out buttons. */}
+        {isLocked && (
+          <div className="footer-bar">
+            <button
+              className="btn ghost"
+              disabled={status !== "running"}
+              onClick={pauseActive}
+            >
+              Pause
+            </button>
+            <button
+              className="btn ghost"
+              disabled={status !== "paused"}
+              onClick={resumeActive}
+            >
+              Resume
+            </button>
 
-          <button
-            className="btn ghost"
-            disabled={!isLocked}
-            onClick={cancelActive}
-            title="Cancel this run (keep the task)"
-          >
-            Cancel
-          </button>
-          <button className="btn" disabled={!isLocked} onClick={finishActive}>
-            Finish
-          </button>
-        </div>
+            <button
+              className="btn ghost"
+              onClick={cancelActive}
+              title="Cancel this run (keep the task)"
+            >
+              Cancel
+            </button>
+            <button className="btn" onClick={finishActive}>
+              Finish
+            </button>
+          </div>
+        )}
       </div>
     </>
   );

@@ -64,7 +64,7 @@
 
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 600;
 
   border: 1px solid var(--chip-border);
   background: var(--chip-bg);
@@ -94,10 +94,11 @@
 /* -----------------------------
      Now list (scroll)
   ----------------------------- */
+/* The list takes whatever height is left instead of being capped at a
+   hard-coded four rows. */
 .now-list {
   flex: 1 1 auto;
   min-height: 0;
-  max-height: min(calc(54px * 4 + var(--todo-row-gap) * 3), 100%);
   overflow-y: auto;
 
   display: flex;
@@ -110,6 +111,73 @@
 }
 .now-list::-webkit-scrollbar {
   display: none;
+}
+
+/* The scrollbar is hidden, so the only cue that there is more content is a
+   fade at whichever edge can still be scrolled toward. */
+.now-list-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.now-list-wrap::before,
+.now-list-wrap::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 4px;
+  height: 18px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 160ms var(--ease);
+  z-index: 3;
+}
+
+.now-list-wrap::before {
+  top: 0;
+  background: linear-gradient(180deg, var(--bg1), transparent);
+}
+
+.now-list-wrap::after {
+  bottom: 0;
+  background: linear-gradient(0deg, var(--bg1), transparent);
+}
+
+.now-list-wrap.can-scroll-up::before,
+.now-list-wrap.can-scroll-down::after {
+  opacity: 0.92;
+}
+
+/* Empty state */
+.now-empty {
+  flex: 1 1 auto;
+  min-height: 96px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+
+  padding: 18px 12px;
+  text-align: center;
+}
+
+.now-empty-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.now-empty-hint {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  max-width: 26ch;
+  line-height: 1.45;
 }
 
 /* -----------------------------
@@ -148,17 +216,21 @@
   letter-spacing: 0.2px;
 }
 
+/* One toolbar row instead of two: the "Now" label carried no information
+   and the remaining count is already in the header badge. */
 .now-bar-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .now-top-right {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  margin-left: auto;
+  flex: 0 0 auto;
 }
 
 .now-bar-bottom {
@@ -166,6 +238,43 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+}
+
+/* Search */
+.now-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.now-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;
+
+  border-radius: 999px;
+  border: 1px solid var(--form-border);
+  background: var(--surface-1);
+  color: var(--ink);
+
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  outline: none;
+}
+
+.now-search input:focus {
+  border-color: var(--form-border-focus);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.now-search-count {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .mode-chip {
@@ -176,9 +285,10 @@
   border: 1px solid var(--chip-border);
   background: var(--chip-bg);
   color: var(--ink);
-  font-size: 9px;
-  font-weight: 900;
+  font-size: 10px;
+  font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .mode-chip:hover {
@@ -193,7 +303,7 @@
   background: var(--chip-bg);
   color: var(--muted);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 600;
   line-height: 1;
   display: inline-flex;
   align-items: center;
@@ -287,19 +397,26 @@
 
 .entry-filter-row.inline {
   margin-bottom: 0;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .entry-filter-chip {
   height: 20px;
-  padding: 0 8px;
+  padding: 0 7px;
   border-radius: 999px;
   border: 1px solid var(--chip-border);
   background: var(--chip-bg);
   color: var(--ink);
   font-size: 10px;
-  font-weight: 900;
+  font-weight: 600;
   cursor: pointer;
+
+  min-width: 0;
+  max-width: 104px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .entry-filter-chip.active {
@@ -662,9 +779,9 @@ body.is-tag-mgr-reordering * {
   cursor: grabbing !important;
 }
 
-/* ✅ keep each todo row height consistent (even when only 1–2 items) */
+/* Keep each todo row height consistent (even when only 1–2 items).
+   `min-height` rather than a fixed height, so an expanded note can grow. */
 .now-list [data-todo-id] {
   flex: 0 0 auto !important;
-  height: 42px; /* 这里就是你“4 个任务时”的那种高度 */
   min-height: 42px;
 }

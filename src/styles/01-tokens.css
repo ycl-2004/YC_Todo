@@ -8,9 +8,10 @@
   /* ✅ glow 更明顯一點（奶霧粉會更甜） */
   --accent-glow: color-mix(in srgb, var(--accent) 36%, transparent);
 
-  /* Text */
-  --ink: rgba(20, 18, 18, 0.92);
-  --muted: rgba(20, 18, 18, 0.6);
+  /* Text — warm plum-tinted rather than near-black, so it sits on the
+     pastel ground instead of cutting into it. */
+  --ink: rgba(48, 37, 45, 0.88);
+  --muted: rgba(48, 37, 45, 0.54);
 
   /*  弹窗text color*/
   --alarm-ink: rgba(20, 18, 18, 0.92);
@@ -89,17 +90,20 @@
   --surface-3: color-mix(in srgb, white 74%, var(--bg1) 26%);
 
   --layer-bg: color-mix(in srgb, white 78%, var(--bg1) 22%);
-  --card-border: color-mix(in srgb, white 66%, rgba(146, 104, 136, 0.32));
+
+  /* Softer edges: a bright white hairline around every row read as a
+     cut-out. Let the tonal step do the separating instead. */
+  --card-border: color-mix(in srgb, white 72%, rgba(146, 104, 136, 0.18));
   --chip-border: color-mix(
     in srgb,
-    var(--card-border) 76%,
-    rgba(146, 104, 136, 0.2)
+    var(--card-border) 82%,
+    rgba(146, 104, 136, 0.12)
   );
-  --chip-bg: color-mix(in srgb, white 72%, var(--surface-2) 28%);
-  --chip-bg-strong: color-mix(in srgb, white 80%, var(--surface-2) 20%);
+  --chip-bg: color-mix(in srgb, white 74%, var(--surface-2) 26%);
+  --chip-bg-strong: color-mix(in srgb, white 82%, var(--surface-2) 18%);
 
-  --todo-grad-1: color-mix(in srgb, white 74%, var(--accent) 26%);
-  --todo-grad-2: color-mix(in srgb, white 66%, var(--accent) 34%);
+  --todo-grad-1: color-mix(in srgb, white 82%, var(--accent) 18%);
+  --todo-grad-2: color-mix(in srgb, white 75%, var(--accent) 25%);
 }
 
 :root[data-theme="dark"] {
