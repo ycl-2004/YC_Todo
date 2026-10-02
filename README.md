@@ -129,23 +129,23 @@ See [PRIVACY.md](PRIVACY.md) for the precise storage and file-access behavior.
 
 ## Current release
 
-YC Todo `0.2.0` is the first Universal macOS release. See the
-[`v0.2.0` release notes](docs/releases/v0.2.0.md) and the complete
+YC Todo **0.2.1** updates native popover opening on macOS 27, restores the
+window when reopening a running app from Finder, and adds a fallback when the
+menu-bar icon has no visible anchor. See the
+[`v0.2.1` release notes](docs/releases/v0.2.1.md) and the complete
 [changelog](CHANGELOG.md).
 
-The current source version is `0.2.1`, which fixes menu-bar left clicks on
-macOS 27 and shows the popover when reopening a running app from Finder.
-YC Todo runs in the menu bar without a Dock window. Building from source does
-not replace an existing `/Applications`
-copy: quit that copy and install the newly built app. The **About** menu version
-should match the app you intend to run.
-Quit other YC Todo copies before launching a release build to avoid duplicate
-menu-bar icons and shortcut registrations.
-When the system hides the menu-bar icon, the task popover opens near the upper
-right of the active screen instead.
-If the icon disappears only while a menu-bar manager such as Thaw is running,
-check that manager's current layout. Reopening YC Todo can restore the task
-window, but does not override another app's icon-hiding rules.
+To upgrade, quit all running YC Todo copies, download the latest ZIP, and replace
+`/Applications/YC Todo.app`. Open that installed copy and confirm **About** shows
+`0.2.1`. Tasks and settings remain in the existing local app storage. Building
+from source does not replace an installed copy automatically.
+
+YC Todo runs in the menu bar without a Dock window. If the icon is unavailable,
+open the installed app again to reveal its task window near the screen's upper
+right. If the icon disappears only while Thaw is running, check Thaw's active
+layout; icon recovery with Thaw on macOS 27 remains unverified. The
+[release notes](docs/releases/v0.2.1.md#compatibility-and-validation) explain the
+tested behavior and remaining checks.
 
 | Artifact | Purpose |
 | --- | --- |
@@ -286,6 +286,9 @@ is recorded in [ADR-0003](docs/decisions/0003-universal-release-artifacts.md).
 - YC Todo is macOS-only. “Universal” means Apple Silicon and Intel macOS, not
   Windows or Linux.
 - App Store sandboxing is not configured for this GitHub release path.
+- Thaw on macOS 27 can leave the menu-bar icon invisible even when its layout
+  lists YC Todo as Visible. This release supports reopening the task window;
+  it does not guarantee managed-icon recovery.
 
 ## License
 

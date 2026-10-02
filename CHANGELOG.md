@@ -14,6 +14,12 @@ All notable user-facing changes to YC Todo are documented here.
 - Added a screen-corner fallback when the menu-bar button has no visible anchor,
   preventing AppKit from silently ignoring the window request.
 
+### Known limitations
+
+- Thaw on macOS 27 may leave the icon invisible even when YC Todo is listed as
+  Visible. Managed-icon recovery has not been verified; reopening the app still
+  reveals its task window. See the [release notes](docs/releases/v0.2.1.md).
+
 ## [0.2.0] - 2026-08-15
 
 ### Added
@@ -38,4 +44,5 @@ All notable user-facing changes to YC Todo are documented here.
 - Replaced the full-width hover overlay with a compact preview attached to its
   source task.
 
+[0.2.1]: https://github.com/ycl-2004/YC_Todo/releases/tag/v0.2.1
 [0.2.0]: https://github.com/ycl-2004/YC_Todo/releases/tag/v0.2.0

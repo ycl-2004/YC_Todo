@@ -14,6 +14,7 @@
 - Frontend build: `npm run build`
 - Rust check: `cargo check --manifest-path src-tauri/Cargo.toml --locked`
 - Bundle: `npm run tauri build`
+- Universal release: `npm run release:macos`; follow `docs/release-checklist.md`.
 
 ## Conventions
 
