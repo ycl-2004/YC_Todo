@@ -1,6 +1,6 @@
 [package]
 name = "yc-todo"
-version = "0.2.0"
+version = "0.2.1"
 description = "A focused macOS menu bar task manager"
 authors = ["Yichen Lin"]
 publish = false
@@ -20,7 +20,7 @@ image = "0.25"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.9.5", features = ["tray-icon"] }
+tauri = { version = "~2.9.5", features = ["tray-icon"] }
 tauri-plugin-log = "2"
 tauri-plugin-positioner = "2"
 tauri-plugin-dialog = "2"
@@ -42,3 +42,9 @@ cocoa-foundation = "0.2.1"
 objc2-app-kit = { version = "0.3.1", features = ["NSPopover", "NSStatusBarButton", "NSWindow"] }
 objc2-foundation = "0.3.1"
 objc2 = "0.6.1"
+
+# macOS 27 rejects misaligned proc-macro dylibs produced by Rust's debug-info
+# stripping. This affects build-time dependencies, not application optimization.
+# https://github.com/rust-lang/rust/issues/157750
+[profile.release.build-override]
+strip = "none"

@@ -18,6 +18,10 @@
 - Install both Rust targets:
   `rustup target add aarch64-apple-darwin x86_64-apple-darwin`.
 - Run `npm run release:macos`.
+- The release profile disables stripping for build-time dependencies to avoid
+  Rust's `mis-aligned LINKEDIT string pool` proc-macro loading error on macOS 27
+  ([upstream issue](https://github.com/rust-lang/rust/issues/157750)). Application
+  release optimization is unchanged.
 - Confirm `lipo -archs` reports both `arm64` and `x86_64` for
   `YC Todo.app/Contents/MacOS/yc-todo`.
 - Confirm `codesign --verify --deep --strict` passes.
@@ -28,6 +32,21 @@
 ## Product regression
 
 - Confirm the native popover and its full-size content area are 386×546.
+- On macOS 27, repeatedly close the startup popover and reopen it with the
+  menu-bar icon. Verify right-click menus, submenu actions, menu cancellation,
+  and reopening by left click after each. Repeat with the global shortcut and
+  confirm keyboard/IME input still works. Check About and the app bundle version
+  agree so an old `/Applications` copy is not mistaken for the build under test.
+- With only the release copy running, hide its popover and double-click that
+  same `.app` in Finder. Verify the popover opens again and no second process
+  or menu-bar icon is created. Repeat while the popover is already visible.
+- Repeat with the menu-bar icon hidden or clipped: the task popover should open
+  near the screen's upper right. Cancel it or click outside, then reopen it; its
+  transparent positioning window must hide with the popover.
+- With a menu-bar manager such as Thaw, record its version and test with it both
+  running and quit, keeping one YC Todo instance. Check the manager's active
+  Visible/Hidden layout and actual icon visibility separately from saved layout
+  preferences. Window reopening alone does not verify managed-icon recovery.
 - Validate task/note creation, progressive actions, long-title preview, focus
   timing, Free/Strict mode, global shortcuts, tray/popover behavior, custom
   sound selection, JSON import/export, Completed Undo, light/dark appearance,

@@ -2,6 +2,18 @@
 
 All notable user-facing changes to YC Todo are documented here.
 
+## [0.2.1] - 2026-10-01
+
+### Fixed
+
+- Restored menu-bar left-click popover opening on macOS 27 by attaching the
+  context menu only during right-click presentation.
+- Replaced the popover plugin's private tray layout casts with Tauri's public
+  status-item access, removing the incompatible legacy tray dependency.
+- Reopening the running app from Finder now activates it and reveals the popover.
+- Added a screen-corner fallback when the menu-bar button has no visible anchor,
+  preventing AppKit from silently ignoring the window request.
+
 ## [0.2.0] - 2026-08-15
 
 ### Added

@@ -133,6 +133,20 @@ YC Todo `0.2.0` is the first Universal macOS release. See the
 [`v0.2.0` release notes](docs/releases/v0.2.0.md) and the complete
 [changelog](CHANGELOG.md).
 
+The current source version is `0.2.1`, which fixes menu-bar left clicks on
+macOS 27 and shows the popover when reopening a running app from Finder.
+YC Todo runs in the menu bar without a Dock window. Building from source does
+not replace an existing `/Applications`
+copy: quit that copy and install the newly built app. The **About** menu version
+should match the app you intend to run.
+Quit other YC Todo copies before launching a release build to avoid duplicate
+menu-bar icons and shortcut registrations.
+When the system hides the menu-bar icon, the task popover opens near the upper
+right of the active screen instead.
+If the icon disappears only while a menu-bar manager such as Thaw is running,
+check that manager's current layout. Reopening YC Todo can restore the task
+window, but does not override another app's icon-hiding rules.
+
 | Artifact | Purpose |
 | --- | --- |
 | `YC-Todo-macOS-universal.zip` | Ready-to-run Universal app for Apple Silicon and Intel |

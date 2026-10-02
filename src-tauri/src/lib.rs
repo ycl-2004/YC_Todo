@@ -19,6 +19,8 @@ use tauri_plugin_global_shortcut::{
   Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState as ShortcutEventState,
 };
 
+mod tray_menu;
+
 struct AlarmState(Mutex<Option<Child>>);
 
 #[derive(Debug, Clone, Serialize)]
@@ -976,7 +978,7 @@ fn set_shortcut(
   // 更新 tray 菜单显示
   if let Some(tray) = app.tray_by_id("main") {
     if let Ok(menu) = rebuild_tray_menu(&app, &cfg) {
-      let _ = tray.set_menu(Some(menu));
+      let _ = tray_menu::set(&tray, menu);
     }
   }
 
@@ -1009,6 +1011,7 @@ fn get_shortcuts(state: State<ShortcutConfigState>) -> Result<ShortcutConfig, St
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .manage(tray_menu::TrayMenuState::default())
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_nspopover::init())
@@ -1253,7 +1256,7 @@ pub fn run() {
 
       // build menu（包含快捷键设置项）
       let menu = rebuild_tray_menu(&app.handle(), &loaded)?;
-      tray.set_menu(Some(menu))?;
+      tray_menu::set(&tray, menu)?;
       tray.set_show_menu_on_left_click(false)?;
 
       // ---------- Menu events ----------
@@ -1316,8 +1319,19 @@ pub fn run() {
 
       // ---------- Left click toggles popover ----------
       let handle = app.handle().clone();
-      tray.on_tray_icon_event(move |_, event| {
+      tray.on_tray_icon_event(move |tray, event| {
         if let tauri::tray::TrayIconEvent::Click { button, button_state, .. } = event {
+          #[cfg(debug_assertions)]
+          eprintln!("tray click: {:?} {:?}", button, button_state);
+          #[cfg(target_os = "macos")]
+          if button == tauri::tray::MouseButton::Right
+            && button_state == tauri::tray::MouseButtonState::Down
+          {
+            if let Err(error) = tray_menu::show(tray) {
+              eprintln!("failed to show tray menu: {error}");
+            }
+            return;
+          }
           if button == tauri::tray::MouseButton::Left
             && button_state == tauri::tray::MouseButtonState::Up
           {
@@ -1347,6 +1361,16 @@ pub fn run() {
       eprintln!("✅ setup done");
       Ok(())
     })
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    .build(tauri::generate_context!())
+    .expect("error while building tauri application")
+    .run(|_app, _event| {
+      // Finder reopens a running menu-bar app without creating a new window.
+      // Always reveal the popover, even if AppKit counts its hidden host window.
+      #[cfg(target_os = "macos")]
+      if matches!(_event, tauri::RunEvent::Reopen { .. }) {
+        activate_app_now();
+        _app.show_popover();
+        eprintln!("macOS reopen: popover shown={}", _app.is_popover_shown());
+      }
+    });
 }
